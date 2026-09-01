@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 47% 6%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 47% 9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 6%;
+
+    --secondary: 217 33% 15%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 13%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217 33% 16%;
+    --input: 217 33% 16%;
+    --ring: 217 91% 60%;
+
+    --radius: 0.625rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased selection:bg-primary/25 selection:text-primary;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum";
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Numeric tabular styling */
+.font-mono-numbers {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* Subtle glow effects */
+.glow-win {
+  box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.15);
+}
+.glow-loss {
+  box-shadow: 0 0 25px -5px rgba(244, 63, 94, 0.15);
+}
+.glow-card {
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+}

@@ -1,0 +1,121 @@
+import { prisma } from "@/lib/prisma";
+import { getDefaultUser } from "./user";
+
+export interface SessionWithQuickStats {
+  id: string;
+  userId: string;
+  name: string;
+  instrument: string;
+  periodStart: Date;
+  periodEnd: Date;
+  startingBalance: number;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+  netPnl: number;
+  winRate: number;
+  tradeCount: number;
+  winCount: number;
+  lossCount: number;
+  breakevenCount: number;
+}
+
+export interface CreateSessionInput {
+  name: string;
+  instrument: string;
+  periodStart: Date;
+  periodEnd: Date;
+  startingBalance: number;
+  status?: string;
+}
+
+export async function getAllSessions(): Promise<SessionWithQuickStats[]> {
+  const user = await getDefaultUser();
+
+  const sessions = await prisma.session.findMany({
+    where: { userId: user.id },
+    orderBy: { createdAt: "desc" },
+    include: {
+      trades: {
+        select: {
+          grossPnl: true,
+          result: true,
+        },
+      },
+    },
+  });
+
+  return sessions.map((session) => {
+    let netPnl = 0;
+    let winCount = 0;
+    let lossCount = 0;
+    let breakevenCount = 0;
+    const tradeCount = session.trades.length;
+
+    for (const trade of session.trades) {
+      netPnl += trade.grossPnl;
+      if (trade.result === "win") winCount++;
+      else if (trade.result === "loss") lossCount++;
+      else if (trade.result === "breakeven") breakevenCount++;
+    }
+
+    const winRate = tradeCount > 0 ? winCount / tradeCount : 0;
+
+    return {
+      id: session.id,
+      userId: session.userId,
+      name: session.name,
+      instrument: session.instrument,
+      periodStart: session.periodStart,
+      periodEnd: session.periodEnd,
+      startingBalance: session.startingBalance,
+      status: session.status,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      netPnl,
+      winRate,
+      tradeCount,
+      winCount,
+      lossCount,
+      breakevenCount,
+    };
+  });
+}
+
+export async function getSessionById(id: string) {
+  const user = await getDefaultUser();
+
+  return prisma.session.findFirst({
+    where: {
+      id,
+      userId: user.id,
+    },
+  });
+}
+
+export async function createSession(data: CreateSessionInput) {
+  const user = await getDefaultUser();
+
+  return prisma.session.create({
+    data: {
+      userId: user.id,
+      name: data.name,
+      instrument: data.instrument,
+      periodStart: data.periodStart,
+      periodEnd: data.periodEnd,
+      startingBalance: data.startingBalance,
+      status: data.status || "active",
+    },
+  });
+}
+
+export async function deleteSession(id: string) {
+  const user = await getDefaultUser();
+
+  return prisma.session.deleteMany({
+    where: {
+      id,
+      userId: user.id,
+    },
+  });
+}
