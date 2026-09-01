@@ -2,18 +2,13 @@ import { prisma } from "@/lib/prisma";
 
 export async function getDefaultUser() {
   const defaultEmail = "default@replayjournal.local";
-  let user = await prisma.user.findUnique({
+
+  return prisma.user.upsert({
     where: { email: defaultEmail },
+    update: {},
+    create: {
+      email: defaultEmail,
+      name: "Default Trader",
+    },
   });
-
-  if (!user) {
-    user = await prisma.user.create({
-      data: {
-        email: defaultEmail,
-        name: "Default Trader",
-      },
-    });
-  }
-
-  return user;
 }
