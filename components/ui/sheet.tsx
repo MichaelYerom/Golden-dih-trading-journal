@@ -30,24 +30,23 @@ export function Sheet({ open, onOpenChange, children }: SheetProps) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-hidden">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/80 transition-opacity"
         onClick={() => onOpenChange(false)}
       />
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-        <div className="w-screen max-w-xl bg-card border-l border-border flex flex-col">
-          <button
-            onClick={() => onOpenChange(false)}
-            className="absolute right-4 top-4 z-10 rounded-md p-1.5 text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="Close"
-          >
-            <X className="h-4 w-4" />
-          </button>
-          <div className="flex-1 overflow-y-auto p-5 sm:p-6">
-            {children}
-          </div>
+      {/* Centered Panel */}
+      <div className="w-full max-w-3xl max-h-[90vh] transform transition-all duration-200 animate-in fade-in zoom-in-95 bg-card border border-border rounded-lg shadow-2xl shadow-black/60 flex flex-col relative z-10">
+        <button
+          onClick={() => onOpenChange(false)}
+          className="absolute right-4 top-4 z-20 rounded-md p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+          aria-label="Close"
+        >
+          <X className="h-4 w-4" />
+        </button>
+        <div className="flex-1 overflow-y-auto p-6 sm:p-8">
+          {children}
         </div>
       </div>
     </div>
