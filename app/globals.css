@@ -4,35 +4,33 @@
 
 @layer base {
   :root {
-    --background: 222 47% 6%;
-    --foreground: 210 40% 98%;
+    --background: 220 15% 6%;         /* #0B0D10 */
+    --card: 220 13% 8%;               /* #12151A */
+    --card-foreground: 210 15% 91%;   /* #E7E9EC */
 
-    --card: 222 47% 9%;
-    --card-foreground: 210 40% 98%;
+    --popover: 220 13% 8%;
+    --popover-foreground: 210 15% 91%;
 
-    --popover: 222 47% 9%;
-    --popover-foreground: 210 40% 98%;
+    --primary: 45 65% 47%;            /* #C9A227 — muted gold */
+    --primary-foreground: 220 15% 6%;
 
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 6%;
+    --secondary: 215 15% 12%;         /* #1E232B */
+    --secondary-foreground: 210 15% 91%;
 
-    --secondary: 217 33% 15%;
-    --secondary-foreground: 210 40% 98%;
+    --muted: 215 15% 11%;
+    --muted-foreground: 214 10% 59%;  /* #8A93A3 */
 
-    --muted: 217 33% 13%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 215 15% 12%;
+    --accent-foreground: 210 15% 91%;
 
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
+    --destructive: 354 65% 59%;       /* #DB5461 */
+    --destructive-foreground: 210 15% 91%;
 
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
+    --border: 215 15% 12%;            /* #1E232B */
+    --input: 215 15% 12%;             /* #1E232B */
+    --ring: 45 65% 47%;
 
-    --border: 217 33% 16%;
-    --input: 217 33% 16%;
-    --ring: 217 91% 60%;
-
-    --radius: 0.625rem;
+    --radius: 0.5rem;                 /* 8px everywhere */
   }
 }
 
@@ -41,39 +39,28 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased selection:bg-primary/25 selection:text-primary;
+    @apply bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum";
   }
 }
 
-/* Custom scrollbars */
+/* Minimal flat scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: hsl(var(--border));
-  border-radius: 9999px;
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
+  background: hsl(var(--muted-foreground) / 0.4);
 }
 
 /* Numeric tabular styling */
 .font-mono-numbers {
   font-variant-numeric: tabular-nums lining-nums;
-}
-
-/* Subtle glow effects */
-.glow-win {
-  box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.15);
-}
-.glow-loss {
-  box-shadow: 0 0 25px -5px rgba(244, 63, 94, 0.15);
-}
-.glow-card {
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
 }

@@ -7,22 +7,22 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
 
 function Badge({ className, variant = "default", ...props }: BadgeProps) {
   const variantStyles = {
-    default: "bg-primary/15 text-primary border-primary/20",
-    secondary: "bg-secondary text-secondary-foreground border-secondary/40",
-    destructive: "bg-destructive/15 text-destructive border-destructive/20",
-    outline: "text-foreground border-border",
-    win: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-    loss: "bg-rose-500/15 text-rose-400 border-rose-500/30",
-    neutral: "bg-slate-500/15 text-slate-400 border-slate-500/30",
-    active: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-    completed: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-    archived: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",
+    default: "bg-primary/10 text-primary border-primary/20",
+    secondary: "bg-secondary text-secondary-foreground border-border",
+    destructive: "bg-[#DB5461]/10 text-[#DB5461] border-[#DB5461]/20",
+    outline: "text-muted-foreground border-border bg-card",
+    win: "bg-[#22A06B]/10 text-[#22A06B] border-[#22A06B]/25",
+    loss: "bg-[#DB5461]/10 text-[#DB5461] border-[#DB5461]/25",
+    neutral: "bg-muted text-muted-foreground border-border",
+    active: "bg-[#22A06B]/10 text-[#22A06B] border-[#22A06B]/25",
+    completed: "bg-primary/10 text-primary border-primary/25",
+    archived: "bg-muted text-muted-foreground border-border",
   };
 
   return (
     <div
       className={cn(
-        "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium tracking-wide transition-colors",
+        "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium tracking-tight",
         variantStyles[variant],
         className
       )}

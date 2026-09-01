@@ -44,20 +44,18 @@ const config: Config = {
           foreground: "hsl(var(--card-foreground))",
         },
         win: {
-          DEFAULT: "#10b981",
-          light: "#d1fae5",
-          dark: "#065f46",
+          DEFAULT: "#22A06B",
+          muted: "rgba(34, 160, 107, 0.12)",
         },
         loss: {
-          DEFAULT: "#f43f5e",
-          light: "#ffe4e6",
-          dark: "#881337",
+          DEFAULT: "#DB5461",
+          muted: "rgba(219, 84, 97, 0.12)",
         },
       },
       borderRadius: {
         lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        md: "calc(var(--radius) - 2px)", // 6px
+        sm: "calc(var(--radius) - 4px)", // 4px
       },
     },
   },

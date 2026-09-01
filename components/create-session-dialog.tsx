@@ -6,7 +6,7 @@ import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } fr
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { Plus, Loader2, Calendar, DollarSign, Target, Activity } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import { createSessionAction } from "@/lib/actions/session-actions";
 
 interface CreateSessionDialogProps {
@@ -44,7 +44,7 @@ export function CreateSessionDialog({ trigger }: CreateSessionDialogProps) {
           {trigger}
         </div>
       ) : (
-        <Button onClick={() => setOpen(true)} className="gap-2 font-medium">
+        <Button onClick={() => setOpen(true)} className="gap-1.5 font-medium">
           <Plus className="h-4 w-4" />
           <span>New Session</span>
         </Button>
@@ -52,28 +52,21 @@ export function CreateSessionDialog({ trigger }: CreateSessionDialogProps) {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogHeader>
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-primary/10 text-primary border border-primary/20">
-              <Activity className="h-5 w-5" />
-            </div>
-            <div>
-              <DialogTitle>Create Backtest Session</DialogTitle>
-              <DialogDescription>
-                Set up a new contained backtesting run with instrument and starting balance.
-              </DialogDescription>
-            </div>
-          </div>
+          <DialogTitle>Create Backtest Session</DialogTitle>
+          <DialogDescription>
+            Configure session details and starting balance.
+          </DialogDescription>
         </DialogHeader>
 
         {error && (
-          <div className="mb-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-medium">
+          <div className="mb-4 p-2.5 rounded-md bg-[#DB5461]/10 border border-[#DB5461]/25 text-[#DB5461] text-xs font-medium">
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3.5">
           <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1.5">
+            <label className="text-xs font-medium text-muted-foreground block mb-1">
               Session Name
             </label>
             <Input
@@ -85,79 +78,65 @@ export function CreateSessionDialog({ trigger }: CreateSessionDialogProps) {
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1.5">
+              <label className="text-xs font-medium text-muted-foreground block mb-1">
                 Instrument / Symbol
               </label>
-              <div className="relative">
-                <Target className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  name="instrument"
-                  placeholder="e.g. NQ, ES, EURUSD"
-                  className="pl-9 font-mono-numbers uppercase"
-                  required
-                  disabled={isSubmitting}
-                />
-              </div>
+              <Input
+                name="instrument"
+                placeholder="e.g. NQ, ES, EURUSD"
+                className="font-mono-numbers uppercase"
+                required
+                disabled={isSubmitting}
+              />
             </div>
 
             <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1.5">
+              <label className="text-xs font-medium text-muted-foreground block mb-1">
                 Starting Balance ($)
               </label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  name="startingBalance"
-                  type="number"
-                  step="any"
-                  placeholder="25000"
-                  defaultValue="25000"
-                  className="pl-9 font-mono-numbers"
-                  required
-                  disabled={isSubmitting}
-                />
-              </div>
+              <Input
+                name="startingBalance"
+                type="number"
+                step="any"
+                placeholder="25000"
+                defaultValue="25000"
+                className="font-mono-numbers"
+                required
+                disabled={isSubmitting}
+              />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1.5">
+              <label className="text-xs font-medium text-muted-foreground block mb-1">
                 Period Start
               </label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  name="periodStart"
-                  type="date"
-                  className="pl-9"
-                  required
-                  disabled={isSubmitting}
-                />
-              </div>
+              <Input
+                name="periodStart"
+                type="date"
+                required
+                disabled={isSubmitting}
+              />
             </div>
 
             <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1.5">
+              <label className="text-xs font-medium text-muted-foreground block mb-1">
                 Period End
               </label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  name="periodEnd"
-                  type="date"
-                  className="pl-9"
-                  required
-                  disabled={isSubmitting}
-                />
-              </div>
+              <Input
+                name="periodEnd"
+                type="date"
+                required
+                disabled={isSubmitting}
+              />
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1.5">
+            <label className="text-xs font-medium text-muted-foreground block mb-1">
               Status
             </label>
             <Select name="status" defaultValue="active" disabled={isSubmitting}>
@@ -176,10 +155,10 @@ export function CreateSessionDialog({ trigger }: CreateSessionDialogProps) {
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting} className="min-w-[110px]">
+            <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                   Creating...
                 </>
               ) : (

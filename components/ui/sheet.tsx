@@ -33,19 +33,19 @@ export function Sheet({ open, onOpenChange, children }: SheetProps) {
     <div className="fixed inset-0 z-50 overflow-hidden">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity animate-in fade-in duration-300"
+        className="fixed inset-0 bg-black/80 transition-opacity"
         onClick={() => onOpenChange(false)}
       />
       <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-        <div className="w-screen max-w-xl transform transition-all ease-in-out duration-300 animate-in slide-in-from-right bg-card border-l border-border shadow-2xl flex flex-col">
+        <div className="w-screen max-w-xl bg-card border-l border-border flex flex-col">
           <button
             onClick={() => onOpenChange(false)}
-            className="absolute right-4 top-4 z-10 rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+            className="absolute right-4 top-4 z-10 rounded-md p-1.5 text-muted-foreground hover:text-foreground transition-colors"
             aria-label="Close"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </button>
-          <div className="flex-1 overflow-y-auto p-6 sm:p-8">
+          <div className="flex-1 overflow-y-auto p-5 sm:p-6">
             {children}
           </div>
         </div>
@@ -60,7 +60,7 @@ export function SheetHeader({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("flex flex-col space-y-1.5 text-left mb-6 pb-4 border-b border-border/80", className)}
+      className={cn("flex flex-col space-y-1 text-left mb-5 pb-3 border-b border-border", className)}
       {...props}
     />
   );
@@ -72,7 +72,7 @@ export function SheetTitle({
 }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
     <h2
-      className={cn("text-xl font-semibold leading-none tracking-tight text-foreground", className)}
+      className={cn("text-base font-semibold leading-tight text-foreground", className)}
       {...props}
     />
   );
@@ -84,7 +84,7 @@ export function SheetDescription({
 }: React.HTMLAttributes<HTMLParagraphElement>) {
   return (
     <p
-      className={cn("text-xs text-muted-foreground mt-1", className)}
+      className={cn("text-xs text-muted-foreground mt-0.5", className)}
       {...props}
     />
   );
@@ -97,7 +97,7 @@ export function SheetFooter({
   return (
     <div
       className={cn(
-        "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-3 mt-8 pt-4 border-t border-border/80 sticky bottom-0 bg-card py-3",
+        "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 mt-6 pt-3 border-t border-border sticky bottom-0 bg-card",
         className
       )}
       {...props}

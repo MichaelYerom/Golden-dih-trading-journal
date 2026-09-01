@@ -11,7 +11,7 @@ export function DeleteSessionButton({ sessionId }: { sessionId: string }) {
   const router = useRouter();
 
   const handleDelete = async () => {
-    if (!confirm("Are you sure you want to delete this session and all its trades? This action cannot be undone.")) {
+    if (!confirm("Delete this session and all its recorded trades?")) {
       return;
     }
     setIsDeleting(true);
@@ -25,7 +25,7 @@ export function DeleteSessionButton({ sessionId }: { sessionId: string }) {
       size="sm"
       onClick={handleDelete}
       disabled={isDeleting}
-      className="text-muted-foreground hover:text-rose-400 hover:border-rose-500/30 gap-1.5 h-9"
+      className="text-muted-foreground hover:text-[#DB5461] hover:border-[#DB5461]/30 gap-1.5 h-9"
       title="Delete Session"
     >
       {isDeleting ? (
