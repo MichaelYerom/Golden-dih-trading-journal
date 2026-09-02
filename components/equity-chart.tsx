@@ -9,15 +9,18 @@ import {
   YAxis,
   Tooltip,
   ReferenceLine,
+  ReferenceArea,
+  ReferenceDot,
   CartesianGrid,
 } from "recharts";
-import { EquityPoint } from "@/lib/data/trades";
+import { EquityPoint, DrawdownResult } from "@/lib/data/trades";
 import { formatCurrencyNeutral, formatCurrency } from "@/lib/utils";
 import { TrendingUp } from "lucide-react";
 
 interface EquityChartProps {
   data: EquityPoint[];
   startingBalance: number;
+  drawdownDetails?: DrawdownResult;
 }
 
 interface CustomTooltipProps {
@@ -98,7 +101,11 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
   return null;
 }
 
-export function EquityChart({ data, startingBalance }: EquityChartProps) {
+export function EquityChart({
+  data,
+  startingBalance,
+  drawdownDetails,
+}: EquityChartProps) {
   // If only start point exists (no trades logged yet)
   if (!data || data.length <= 1) {
     return (
@@ -170,7 +177,13 @@ export function EquityChart({ data, startingBalance }: EquityChartProps) {
             orientation="right"
           />
 
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip
+            content={<CustomTooltip />}
+            cursor={{
+              stroke: "rgba(255, 255, 255, 0.2)",
+              strokeDasharray: "3 3",
+            }}
+          />
 
           {/* Baseline at Starting Balance */}
           <ReferenceLine
@@ -185,6 +198,40 @@ export function EquityChart({ data, startingBalance }: EquityChartProps) {
               fontSize: 10,
             }}
           />
+
+          {/* Max Drawdown Period Highlight & Markers */}
+          {drawdownDetails &&
+            drawdownDetails.maxDrawdownAmount > 0 &&
+            drawdownDetails.maxDrawdownStart &&
+            drawdownDetails.maxDrawdownEnd && (
+              <>
+                <ReferenceArea
+                  x1={drawdownDetails.maxDrawdownStart.date}
+                  x2={drawdownDetails.maxDrawdownEnd.date}
+                  fill="#DB5461"
+                  fillOpacity={0.12}
+                  stroke="#DB5461"
+                  strokeOpacity={0.35}
+                  strokeDasharray="3 3"
+                />
+                <ReferenceDot
+                  x={drawdownDetails.maxDrawdownStart.date}
+                  y={drawdownDetails.maxDrawdownStart.balance}
+                  r={4.5}
+                  fill="#22A06B"
+                  stroke="hsl(var(--background))"
+                  strokeWidth={2}
+                />
+                <ReferenceDot
+                  x={drawdownDetails.maxDrawdownEnd.date}
+                  y={drawdownDetails.maxDrawdownEnd.balance}
+                  r={4.5}
+                  fill="#DB5461"
+                  stroke="hsl(var(--background))"
+                  strokeWidth={2}
+                />
+              </>
+            )}
 
           <Area
             type="monotone"

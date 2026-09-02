@@ -28,8 +28,26 @@ model Session {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   trades          Trade[]
+  rules           Rule[]
 
   @@index([userId])
+}
+
+model Tag {
+  id        String   @id @default(cuid())
+  category  String   // "SETUP" | "HTF_BIAS" | "EMOTIONAL_STATE" | "DRAW_DIRECTION"
+  name      String
+  color     String?  // Optional hex color for future UI badges
+  createdAt DateTime @default(now())
+
+  // Relations to Trade
+  setupTrades          Trade[] @relation("TradeSetupTags")
+  htfBiasTrades        Trade[] @relation("TradeHtfBiasTag")
+  emotionalStateTrades Trade[] @relation("TradeEmotionalStateTag")
+  drawDirectionTrades  Trade[] @relation("TradeDrawDirectionTag")
+
+  @@unique([category, name])
+  @@index([category])
 }
 
 model Trade {
@@ -43,12 +61,14 @@ model Trade {
   exitAt     DateTime
   entryPrice Float
   exitPrice  Float
+  stopLoss   Float?
+  rMultiple  Float?
   grossPnl   Float
   result     String   // "win" | "loss" | "breakeven"
   notes      String?
   createdAt  DateTime @default(now())
 
-  // Backtest-log fields (plain scalar columns)
+  // Backtest-log scalars
   htfBias        String?  // "Bullish" | "Bearish" | "Neutral"
   newsToday      String?  // e.g. "NFP", "CPI", or blank
   riskPercent    Float?   // e.g. 1.0 (1%)
@@ -58,5 +78,45 @@ model Trade {
   rulesFollowed  Boolean? // e.g. true / false
   rr             String?  // e.g. "1:3"
 
+  // Structured Tag Relations
+  setupTags           Tag[]   @relation("TradeSetupTags")
+  htfBiasTagId        String?
+  htfBiasTag          Tag?    @relation("TradeHtfBiasTag", fields: [htfBiasTagId], references: [id], onDelete: SetNull)
+  emotionalStateTagId String?
+  emotionalStateTag   Tag?    @relation("TradeEmotionalStateTag", fields: [emotionalStateTagId], references: [id], onDelete: SetNull)
+  drawDirectionTagId  String?
+  drawDirectionTag    Tag?    @relation("TradeDrawDirectionTag", fields: [drawDirectionTagId], references: [id], onDelete: SetNull)
+
+  // Rule Compliance Checks
+  ruleChecks          TradeRuleCheck[]
+
   @@index([sessionId])
+  @@index([htfBiasTagId])
+  @@index([emotionalStateTagId])
+  @@index([drawDirectionTagId])
+}
+
+model Rule {
+  id        String           @id @default(cuid())
+  sessionId String
+  session   Session          @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  text      String
+  createdAt DateTime         @default(now())
+  checks    TradeRuleCheck[]
+
+  @@index([sessionId])
+}
+
+model TradeRuleCheck {
+  id        String   @id @default(cuid())
+  tradeId   String
+  trade     Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  ruleId    String
+  rule      Rule     @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  followed  Boolean
+  createdAt DateTime @default(now())
+
+  @@unique([tradeId, ruleId])
+  @@index([tradeId])
+  @@index([ruleId])
 }
