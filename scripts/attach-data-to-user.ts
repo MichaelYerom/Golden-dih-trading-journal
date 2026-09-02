@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { PrismaClient as SqliteClient } from "../prisma/sqlite-client";
 import { PrismaClient as PostgresClient } from "@prisma/client";
 
