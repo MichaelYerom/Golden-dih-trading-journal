@@ -18,6 +18,14 @@ export interface TradeRuleCheckEntity {
   };
 }
 
+export interface TradeImageEntity {
+  id: string;
+  tradeId: string;
+  url: string;
+  label: string | null;
+  createdAt: Date;
+}
+
 export interface TradeEntity {
   id: string;
   sessionId: string;
@@ -42,6 +50,7 @@ export interface TradeEntity {
   rulesFollowed: boolean | null;
   rr: string | null;
   ruleChecks?: TradeRuleCheckEntity[];
+  images?: TradeImageEntity[];
 }
 
 export interface EquityPoint {
@@ -198,6 +207,204 @@ export interface TimeAnalyticsResult {
   worstDay: { dayName: string; totalPnl: number; winRate: number | null } | null;
 }
 
+export interface SetupConditionPerformance {
+  condition: string;
+  count: number;
+  winCount: number;
+  lossCount: number;
+  breakevenCount: number;
+  winRate: number | null;
+  totalPnl: number;
+  avgPnl: number | null;
+  avgR: number | null;
+  expectancy: number | null;
+  isLowConfidence: boolean;
+}
+
+export interface SetupPerformance {
+  setup: string;
+  count: number;
+  winCount: number;
+  lossCount: number;
+  breakevenCount: number;
+  winRate: number | null;
+  avgR: number | null;
+  expectancy: number | null;
+  profitFactor: number | null;
+  totalPnl: number;
+  avgPnl: number | null;
+  largestWin: number;
+  largestLoss: number;
+  isLowConfidence: boolean;
+  conditions: SetupConditionPerformance[];
+}
+
+export interface SetupAnalyticsResult {
+  setups: SetupPerformance[];
+  totalSetupsCount: number;
+  bestSetup: SetupPerformance | null;
+  mostProfitableSetup: SetupPerformance | null;
+  highestWinRateSetup: SetupPerformance | null;
+}
+
+export interface TradeFilterCriteria {
+  setup?: string[];
+  result?: ("win" | "loss" | "breakeven")[];
+  symbol?: string[];
+  dateRange?: { start?: string | Date | null; end?: string | Date | null };
+  rulesFollowed?: boolean | null;
+  emotionalState?: string[];
+  minR?: number | null;
+  maxR?: number | null;
+  searchText?: string | null;
+}
+
+export function filterTrades(
+  trades: TradeEntity[],
+  filters: TradeFilterCriteria
+): TradeEntity[] {
+  return trades.filter((trade) => {
+    // 1. Setup multi-select
+    if (filters.setup && filters.setup.length > 0) {
+      if (!trade.setupModel || trade.setupModel.trim() === "") {
+        if (!filters.setup.includes("Unspecified")) return false;
+      } else {
+        const tradeSetups = trade.setupModel
+          .split(",")
+          .map((s) => s.trim().toLowerCase());
+        const hasMatch = filters.setup.some((s) =>
+          tradeSetups.includes(s.trim().toLowerCase())
+        );
+        if (!hasMatch) return false;
+      }
+    }
+
+    // 2. Result multi-select
+    if (filters.result && filters.result.length > 0) {
+      if (!filters.result.includes(trade.result as "win" | "loss" | "breakeven")) {
+        return false;
+      }
+    }
+
+    // 3. Symbol multi-select
+    if (filters.symbol && filters.symbol.length > 0) {
+      const targetSymbols = filters.symbol.map((s) => s.toUpperCase().trim());
+      if (!targetSymbols.includes(trade.symbol.toUpperCase().trim())) {
+        return false;
+      }
+    }
+
+    // 4. Date Range
+    if (filters.dateRange) {
+      const tradeDate = new Date(trade.entryAt).getTime();
+      if (filters.dateRange.start) {
+        const startDate = new Date(filters.dateRange.start).getTime();
+        if (!isNaN(startDate) && tradeDate < startDate) return false;
+      }
+      if (filters.dateRange.end) {
+        const endDate = new Date(filters.dateRange.end);
+        if (typeof filters.dateRange.end === "string" && !filters.dateRange.end.includes("T")) {
+          endDate.setHours(23, 59, 59, 999);
+        }
+        const endTime = endDate.getTime();
+        if (!isNaN(endTime) && tradeDate > endTime) return false;
+      }
+    }
+
+    // 5. Rules Followed
+    if (filters.rulesFollowed !== undefined && filters.rulesFollowed !== null) {
+      if (trade.rulesFollowed !== filters.rulesFollowed) {
+        return false;
+      }
+    }
+
+    // 6. Emotional State multi-select
+    if (filters.emotionalState && filters.emotionalState.length > 0) {
+      if (!trade.emotionalState || trade.emotionalState.trim() === "") {
+        if (!filters.emotionalState.includes("Unspecified")) return false;
+      } else {
+        const tradeStates = trade.emotionalState
+          .split(",")
+          .map((s) => s.trim().toLowerCase());
+        const hasMatch = filters.emotionalState.some((s) =>
+          tradeStates.includes(s.trim().toLowerCase())
+        );
+        if (!hasMatch) return false;
+      }
+    }
+
+    // 7. Min R
+    if (filters.minR !== undefined && filters.minR !== null && !isNaN(filters.minR)) {
+      if (trade.rMultiple === null || isNaN(trade.rMultiple) || trade.rMultiple < filters.minR) {
+        return false;
+      }
+    }
+
+    // 8. Max R
+    if (filters.maxR !== undefined && filters.maxR !== null && !isNaN(filters.maxR)) {
+      if (trade.rMultiple === null || isNaN(trade.rMultiple) || trade.rMultiple > filters.maxR) {
+        return false;
+      }
+    }
+
+    // 9. Full-Text Search (Notes, Setup, Symbol, Draw, HTF Bias)
+    if (filters.searchText && filters.searchText.trim() !== "") {
+      const q = filters.searchText.trim().toLowerCase();
+      const matchNotes = trade.notes ? trade.notes.toLowerCase().includes(q) : false;
+      const matchSetup = trade.setupModel ? trade.setupModel.toLowerCase().includes(q) : false;
+      const matchSymbol = trade.symbol ? trade.symbol.toLowerCase().includes(q) : false;
+      const matchDraw = trade.drawDirection ? trade.drawDirection.toLowerCase().includes(q) : false;
+      const matchBias = trade.htfBias ? trade.htfBias.toLowerCase().includes(q) : false;
+
+      if (!matchNotes && !matchSetup && !matchSymbol && !matchDraw && !matchBias) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+}
+
+export interface DailyPnLRecord {
+  date: string; // YYYY-MM-DD
+  year: number;
+  month: number; // 1-12
+  day: number; // 1-31
+  dayOfWeek: number; // 0=Sun, 1=Mon, ..., 6=Sat
+  totalPnl: number;
+  tradeCount: number;
+  winCount: number;
+  lossCount: number;
+  breakevenCount: number;
+  winRate: number | null;
+  avgR: number | null;
+  isProfit: boolean;
+  isLoss: boolean;
+  isBreakeven: boolean;
+}
+
+export interface DayStreakStats {
+  currentDayStreak: number;
+  longestGreenDayStreak: number;
+  longestRedDayStreak: number;
+  totalTradingDays: number;
+  profitableDaysCount: number;
+  losingDaysCount: number;
+  breakevenDaysCount: number;
+  dayWinRate: number | null;
+  bestDay: { date: string; pnl: number } | null;
+  worstDay: { date: string; pnl: number } | null;
+  avgDailyPnl: number | null;
+}
+
+export interface CalendarAnalyticsResult {
+  dailyRecords: DailyPnLRecord[];
+  dailyPnLMap: Record<string, DailyPnLRecord>;
+  dayStreaks: DayStreakStats;
+  availableMonths: Array<{ year: number; month: number; label: string; key: string }>;
+  defaultMonthKey: string;
+}
+
 export interface SessionTradesAndStats {
   trades: TradeEntity[];
   stats: SessionStats;
@@ -207,6 +414,8 @@ export interface SessionTradesAndStats {
   rules: RuleEntity[];
   compliance: RuleComplianceResult;
   timeAnalytics: TimeAnalyticsResult;
+  setupAnalytics: SetupAnalyticsResult;
+  calendarAnalytics: CalendarAnalyticsResult;
 }
 
 export interface CreateTradeInput {
@@ -1015,10 +1224,475 @@ export function calculateTimeAnalytics(trades: TradeEntity[]): TimeAnalyticsResu
   };
 }
 
+export function calculateSetupPerformance(trades: TradeEntity[]): SetupAnalyticsResult {
+  const setupTradesMap = new Map<string, TradeEntity[]>();
+
+  for (const trade of trades) {
+    if (trade.setupModel && trade.setupModel.trim() !== "") {
+      const splitSetups = trade.setupModel
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      if (splitSetups.length > 0) {
+        for (const s of splitSetups) {
+          const list = setupTradesMap.get(s) || [];
+          list.push(trade);
+          setupTradesMap.set(s, list);
+        }
+      } else {
+        const list = setupTradesMap.get("Unspecified") || [];
+        list.push(trade);
+        setupTradesMap.set("Unspecified", list);
+      }
+    } else {
+      const list = setupTradesMap.get("Unspecified") || [];
+      list.push(trade);
+      setupTradesMap.set("Unspecified", list);
+    }
+  }
+
+  const setups: SetupPerformance[] = [];
+
+  for (const [setupName, setupTrades] of setupTradesMap.entries()) {
+    const count = setupTrades.length;
+    let winCount = 0;
+    let lossCount = 0;
+    let breakevenCount = 0;
+    let totalPnl = 0;
+    let totalGains = 0;
+    let totalLosses = 0;
+
+    for (const t of setupTrades) {
+      totalPnl += t.grossPnl;
+      if (t.result === "win") {
+        winCount++;
+        totalGains += Math.max(0, t.grossPnl);
+      } else if (t.result === "loss") {
+        lossCount++;
+        totalLosses += Math.abs(Math.min(0, t.grossPnl));
+      } else if (t.result === "breakeven") {
+        breakevenCount++;
+      }
+    }
+
+    const winRate = count > 0 ? Math.round((winCount / count) * 1000) / 10 : null;
+    const avgPnl = count > 0 ? Math.round((totalPnl / count) * 100) / 100 : null;
+    totalPnl = Math.round(totalPnl * 100) / 100;
+
+    let profitFactor: number | null = null;
+    if (totalLosses > 0) {
+      profitFactor = Math.round((totalGains / totalLosses) * 100) / 100;
+    } else if (totalGains > 0) {
+      profitFactor = Infinity;
+    }
+
+    const largestWin =
+      setupTrades.length > 0 ? Math.max(0, ...setupTrades.map((t) => t.grossPnl)) : 0;
+    const largestLoss =
+      setupTrades.length > 0 ? Math.min(0, ...setupTrades.map((t) => t.grossPnl)) : 0;
+
+    const tradesWithR = setupTrades.filter((t) => t.rMultiple !== null && !isNaN(t.rMultiple));
+    const avgR =
+      tradesWithR.length > 0
+        ? Math.round(
+            (tradesWithR.reduce((acc, t) => acc + (t.rMultiple || 0), 0) / tradesWithR.length) *
+              100
+          ) / 100
+        : null;
+
+    const expectancyData = calculateExpectancy(setupTrades);
+    const expectancy = expectancyData.expectancy;
+
+    const isLowConfidence = count < 3;
+
+    // Cross-tabulate condition performance for this setup
+    const conditionTradesMap = new Map<string, TradeEntity[]>();
+    for (const t of setupTrades) {
+      const cond = t.htfBias?.trim() || "Unspecified";
+      const list = conditionTradesMap.get(cond) || [];
+      list.push(t);
+      conditionTradesMap.set(cond, list);
+    }
+
+    const conditions: SetupConditionPerformance[] = [];
+    for (const [condName, condTrades] of conditionTradesMap.entries()) {
+      const condCount = condTrades.length;
+      let cWins = 0;
+      let cLosses = 0;
+      let cBreakevens = 0;
+      let cPnl = 0;
+
+      for (const ct of condTrades) {
+        cPnl += ct.grossPnl;
+        if (ct.result === "win") cWins++;
+        else if (ct.result === "loss") cLosses++;
+        else if (ct.result === "breakeven") cBreakevens++;
+      }
+
+      const cWinRate = condCount > 0 ? Math.round((cWins / condCount) * 1000) / 10 : null;
+      const cAvgPnl = condCount > 0 ? Math.round((cPnl / condCount) * 100) / 100 : null;
+      cPnl = Math.round(cPnl * 100) / 100;
+
+      const cTradesWithR = condTrades.filter((t) => t.rMultiple !== null && !isNaN(t.rMultiple));
+      const cAvgR =
+        cTradesWithR.length > 0
+          ? Math.round(
+              (cTradesWithR.reduce((acc, t) => acc + (t.rMultiple || 0), 0) /
+                cTradesWithR.length) *
+                100
+            ) / 100
+          : null;
+
+      const cExpectancy = calculateExpectancy(condTrades).expectancy;
+
+      conditions.push({
+        condition: condName,
+        count: condCount,
+        winCount: cWins,
+        lossCount: cLosses,
+        breakevenCount: cBreakevens,
+        winRate: cWinRate,
+        totalPnl: cPnl,
+        avgPnl: cAvgPnl,
+        avgR: cAvgR,
+        expectancy: cExpectancy,
+        isLowConfidence: condCount < 3,
+      });
+    }
+
+    conditions.sort((a, b) => b.count - a.count);
+
+    setups.push({
+      setup: setupName,
+      count,
+      winCount,
+      lossCount,
+      breakevenCount,
+      winRate,
+      avgR,
+      expectancy,
+      profitFactor,
+      totalPnl,
+      avgPnl,
+      largestWin,
+      largestLoss,
+      isLowConfidence,
+      conditions,
+    });
+  }
+
+  setups.sort((a, b) => {
+    if (a.setup === "Unspecified" && b.setup !== "Unspecified") return 1;
+    if (b.setup === "Unspecified" && a.setup !== "Unspecified") return -1;
+    if (a.expectancy !== null && b.expectancy !== null) {
+      return b.expectancy - a.expectancy;
+    }
+    return b.totalPnl - a.totalPnl;
+  });
+
+  const namedSetups = setups.filter((s) => s.setup !== "Unspecified");
+  const candidateSetups = namedSetups.length > 0 ? namedSetups : setups;
+
+  const highConfSetups = candidateSetups.filter(
+    (s) => !s.isLowConfidence && s.expectancy !== null
+  );
+  const bestSetup =
+    highConfSetups.length > 0
+      ? [...highConfSetups].sort((a, b) => (b.expectancy ?? -999) - (a.expectancy ?? -999))[0]
+      : candidateSetups.length > 0
+      ? [...candidateSetups].sort((a, b) => (b.expectancy ?? -999) - (a.expectancy ?? -999))[0]
+      : null;
+
+  const mostProfitableSetup =
+    candidateSetups.length > 0
+      ? [...candidateSetups].sort((a, b) => b.totalPnl - a.totalPnl)[0]
+      : null;
+
+  const highestWinRateSetup =
+    candidateSetups.length > 0
+      ? [...candidateSetups]
+          .filter((s) => s.winRate !== null)
+          .sort((a, b) => (b.winRate ?? 0) - (a.winRate ?? 0))[0]
+      : null;
+
+  return {
+    setups,
+    totalSetupsCount: setups.length,
+    bestSetup,
+    mostProfitableSetup,
+    highestWinRateSetup,
+  };
+}
+
+export function calculateDailyPnL(trades: TradeEntity[]): DailyPnLRecord[] {
+  const map = new Map<string, TradeEntity[]>();
+
+  const validTrades = trades.filter((t) => t.entryAt && !isNaN(new Date(t.entryAt).getTime()));
+
+  for (const trade of validTrades) {
+    const d = new Date(trade.entryAt);
+    const dateKey = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}-${d.getDate().toString().padStart(2, "0")}`;
+    const list = map.get(dateKey) || [];
+    list.push(trade);
+    map.set(dateKey, list);
+  }
+
+  const records: DailyPnLRecord[] = [];
+
+  for (const [dateKey, dayTrades] of map.entries()) {
+    const d = new Date(dayTrades[0].entryAt);
+    const count = dayTrades.length;
+    let winCount = 0;
+    let lossCount = 0;
+    let breakevenCount = 0;
+    let totalPnl = 0;
+
+    for (const t of dayTrades) {
+      totalPnl += t.grossPnl;
+      if (t.result === "win") winCount++;
+      else if (t.result === "loss") lossCount++;
+      else if (t.result === "breakeven") breakevenCount++;
+    }
+
+    totalPnl = Math.round(totalPnl * 100) / 100;
+    const winRate = count > 0 ? Math.round((winCount / count) * 1000) / 10 : null;
+
+    const tradesWithR = dayTrades.filter((t) => t.rMultiple !== null && !isNaN(t.rMultiple));
+    const avgR =
+      tradesWithR.length > 0
+        ? Math.round(
+            (tradesWithR.reduce((acc, t) => acc + (t.rMultiple || 0), 0) / tradesWithR.length) *
+              100
+          ) / 100
+        : null;
+
+    records.push({
+      date: dateKey,
+      year: d.getFullYear(),
+      month: d.getMonth() + 1,
+      day: d.getDate(),
+      dayOfWeek: d.getDay(),
+      totalPnl,
+      tradeCount: count,
+      winCount,
+      lossCount,
+      breakevenCount,
+      winRate,
+      avgR,
+      isProfit: totalPnl > 0.001,
+      isLoss: totalPnl < -0.001,
+      isBreakeven: Math.abs(totalPnl) <= 0.001,
+    });
+  }
+
+  records.sort((a, b) => a.date.localeCompare(b.date));
+  return records;
+}
+
+export function calculateStreaksByDay(dailyRecords: DailyPnLRecord[]): DayStreakStats {
+  const totalTradingDays = dailyRecords.length;
+  if (totalTradingDays === 0) {
+    return {
+      currentDayStreak: 0,
+      longestGreenDayStreak: 0,
+      longestRedDayStreak: 0,
+      totalTradingDays: 0,
+      profitableDaysCount: 0,
+      losingDaysCount: 0,
+      breakevenDaysCount: 0,
+      dayWinRate: null,
+      bestDay: null,
+      worstDay: null,
+      avgDailyPnl: null,
+    };
+  }
+
+  let profitableDaysCount = 0;
+  let losingDaysCount = 0;
+  let breakevenDaysCount = 0;
+  let totalPnl = 0;
+
+  let bestDay: { date: string; pnl: number } | null = null;
+  let worstDay: { date: string; pnl: number } | null = null;
+
+  for (const d of dailyRecords) {
+    totalPnl += d.totalPnl;
+    if (d.isProfit) {
+      profitableDaysCount++;
+    } else if (d.isLoss) {
+      losingDaysCount++;
+    } else {
+      breakevenDaysCount++;
+    }
+
+    if (!bestDay || d.totalPnl > bestDay.pnl) {
+      bestDay = { date: d.date, pnl: d.totalPnl };
+    }
+    if (!worstDay || d.totalPnl < worstDay.pnl) {
+      worstDay = { date: d.date, pnl: d.totalPnl };
+    }
+  }
+
+  const dayWinRate =
+    totalTradingDays > 0 ? Math.round((profitableDaysCount / totalTradingDays) * 1000) / 10 : null;
+  const avgDailyPnl =
+    totalTradingDays > 0 ? Math.round((totalPnl / totalTradingDays) * 100) / 100 : null;
+
+  let longestGreenDayStreak = 0;
+  let longestRedDayStreak = 0;
+  let currentDayStreak = 0;
+  let currentGreen = 0;
+  let currentRed = 0;
+
+  for (const d of dailyRecords) {
+    if (d.isProfit) {
+      currentGreen++;
+      currentRed = 0;
+      if (currentGreen > longestGreenDayStreak) {
+        longestGreenDayStreak = currentGreen;
+      }
+    } else if (d.isLoss) {
+      currentRed++;
+      currentGreen = 0;
+      if (currentRed > longestRedDayStreak) {
+        longestRedDayStreak = currentRed;
+      }
+    } else {
+      currentGreen = 0;
+      currentRed = 0;
+    }
+  }
+
+  const latest = dailyRecords[dailyRecords.length - 1];
+  if (latest) {
+    if (latest.isProfit) {
+      let count = 0;
+      for (let i = dailyRecords.length - 1; i >= 0; i--) {
+        if (dailyRecords[i].isProfit) count++;
+        else break;
+      }
+      currentDayStreak = count;
+    } else if (latest.isLoss) {
+      let count = 0;
+      for (let i = dailyRecords.length - 1; i >= 0; i--) {
+        if (dailyRecords[i].isLoss) count++;
+        else break;
+      }
+      currentDayStreak = -count;
+    } else {
+      currentDayStreak = 0;
+    }
+  }
+
+  return {
+    currentDayStreak,
+    longestGreenDayStreak,
+    longestRedDayStreak,
+    totalTradingDays,
+    profitableDaysCount,
+    losingDaysCount,
+    breakevenDaysCount,
+    dayWinRate,
+    bestDay,
+    worstDay,
+    avgDailyPnl,
+  };
+}
+
+export function calculateCalendarAnalytics(
+  trades: TradeEntity[],
+  sessionPeriodStart?: Date,
+  sessionPeriodEnd?: Date
+): CalendarAnalyticsResult {
+  const dailyRecords = calculateDailyPnL(trades);
+  const dailyPnLMap: Record<string, DailyPnLRecord> = {};
+  for (const r of dailyRecords) {
+    dailyPnLMap[r.date] = r;
+  }
+
+  const dayStreaks = calculateStreaksByDay(dailyRecords);
+
+  const monthMap = new Map<string, { year: number; month: number; label: string; key: string }>();
+
+  if (
+    sessionPeriodStart &&
+    sessionPeriodEnd &&
+    !isNaN(new Date(sessionPeriodStart).getTime()) &&
+    !isNaN(new Date(sessionPeriodEnd).getTime())
+  ) {
+    const s = new Date(sessionPeriodStart);
+    const e = new Date(sessionPeriodEnd);
+    let curr = new Date(s.getFullYear(), s.getMonth(), 1);
+    const endMonth = new Date(e.getFullYear(), e.getMonth(), 1);
+
+    while (curr.getTime() <= endMonth.getTime()) {
+      const key = `${curr.getFullYear()}-${(curr.getMonth() + 1).toString().padStart(2, "0")}`;
+      const label = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(curr);
+      monthMap.set(key, { year: curr.getFullYear(), month: curr.getMonth() + 1, label, key });
+      curr = new Date(curr.getFullYear(), curr.getMonth() + 1, 1);
+    }
+  } else {
+    if (sessionPeriodStart && !isNaN(new Date(sessionPeriodStart).getTime())) {
+      const s = new Date(sessionPeriodStart);
+      const key = `${s.getFullYear()}-${(s.getMonth() + 1).toString().padStart(2, "0")}`;
+      const label = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(s);
+      monthMap.set(key, { year: s.getFullYear(), month: s.getMonth() + 1, label, key });
+    }
+
+    if (sessionPeriodEnd && !isNaN(new Date(sessionPeriodEnd).getTime())) {
+      const e = new Date(sessionPeriodEnd);
+      const key = `${e.getFullYear()}-${(e.getMonth() + 1).toString().padStart(2, "0")}`;
+      const label = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(e);
+      monthMap.set(key, { year: e.getFullYear(), month: e.getMonth() + 1, label, key });
+    }
+  }
+
+  for (const r of dailyRecords) {
+    const key = `${r.year}-${r.month.toString().padStart(2, "0")}`;
+    if (!monthMap.has(key)) {
+      const d = new Date(r.year, r.month - 1, 1);
+      const label = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(d);
+      monthMap.set(key, { year: r.year, month: r.month, label, key });
+    }
+  }
+
+  if (monthMap.size === 0) {
+    const now = new Date();
+    const key = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, "0")}`;
+    const label = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(now);
+    monthMap.set(key, { year: now.getFullYear(), month: now.getMonth() + 1, label, key });
+  }
+
+  const availableMonths = Array.from(monthMap.values()).sort((a, b) => a.key.localeCompare(b.key));
+
+  let defaultMonthKey = availableMonths[0]?.key || "";
+  if (dailyRecords.length > 0) {
+    const lastRecord = dailyRecords[dailyRecords.length - 1];
+    const tradeMonthKey = `${lastRecord.year}-${lastRecord.month.toString().padStart(2, "0")}`;
+    if (availableMonths.some((m) => m.key === tradeMonthKey)) {
+      defaultMonthKey = tradeMonthKey;
+    } else {
+      defaultMonthKey = availableMonths[availableMonths.length - 1].key;
+    }
+  } else if (availableMonths.length > 0) {
+    defaultMonthKey = availableMonths[0].key;
+  }
+
+  return {
+    dailyRecords,
+    dailyPnLMap,
+    dayStreaks,
+    availableMonths,
+    defaultMonthKey,
+  };
+}
+
 export async function getSessionTradesAndStats(
   sessionId: string,
   startingBalance: number,
-  sessionStartDate?: Date
+  sessionStartDate?: Date,
+  sessionEndDate?: Date
 ): Promise<SessionTradesAndStats> {
   const [rawTrades, rules] = await Promise.all([
     prisma.trade.findMany({
@@ -1027,6 +1701,11 @@ export async function getSessionTradesAndStats(
         ruleChecks: {
           include: {
             rule: true,
+          },
+        },
+        images: {
+          orderBy: {
+            createdAt: "asc",
           },
         },
       },
@@ -1055,6 +1734,13 @@ export async function getSessionTradesAndStats(
         ruleId: rc.ruleId,
         followed: rc.followed,
         rule: rc.rule ? { id: rc.rule.id, text: rc.rule.text } : undefined,
+      })),
+      images: (t.images || []).map((img) => ({
+        id: img.id,
+        tradeId: img.tradeId,
+        url: img.url,
+        label: img.label,
+        createdAt: img.createdAt,
       })),
     };
   });
@@ -1135,11 +1821,17 @@ export async function getSessionTradesAndStats(
     });
   });
 
-  // Calculate Drawdown and Streaks from equity curve and trades
+  // Calculate Drawdown, Streaks, Compliance, Time, Setup, and Calendar Analytics
   const drawdownDetails = calculateDrawdown(equityCurve);
   const streaks = calculateStreaks(trades);
   const compliance = calculateRuleCompliance(trades, rules);
   const timeAnalytics = calculateTimeAnalytics(trades);
+  const setupAnalytics = calculateSetupPerformance(trades);
+  const calendarAnalytics = calculateCalendarAnalytics(
+    trades,
+    sessionStartDate,
+    sessionEndDate
+  );
 
   const stats: SessionStats = {
     netPnl,
@@ -1178,6 +1870,8 @@ export async function getSessionTradesAndStats(
     rules,
     compliance,
     timeAnalytics,
+    setupAnalytics,
+    calendarAnalytics,
   };
 }
 

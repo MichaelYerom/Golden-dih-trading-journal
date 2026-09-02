@@ -1,7 +1,48 @@
 "use server";
 
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
 import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/prisma";
 import { createTrade, updateTrade, deleteTrade } from "@/lib/data/trades";
+import { getSessionById } from "@/lib/data/sessions";
+
+async function saveTradeImagesFromFormData(tradeId: string, formData: FormData) {
+  const files = formData.getAll("pendingImages") as File[];
+  const labelsJson = formData.get("pendingImageLabels") as string;
+  let labels: string[] = [];
+  try {
+    if (labelsJson) labels = JSON.parse(labelsJson);
+  } catch {}
+
+  if (!files || files.length === 0) return;
+
+  const uploadDir = path.join(process.cwd(), "public", "uploads", "trades", tradeId);
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (file && file instanceof File && file.size > 0 && file.size <= 5 * 1024 * 1024) {
+      const ext = path.extname(file.name).toLowerCase() || ".png";
+      const uniqueName = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}${ext}`;
+      const filePath = path.join(uploadDir, uniqueName);
+      const bytes = await file.arrayBuffer();
+      await fs.promises.writeFile(filePath, Buffer.from(bytes));
+      const publicUrl = `/uploads/trades/${tradeId}/${uniqueName}`;
+      const label = labels[i]?.trim() || null;
+      await prisma.tradeImage.create({
+        data: {
+          tradeId,
+          url: publicUrl,
+          label,
+        },
+      });
+    }
+  }
+}
 
 export async function createTradeAction(formData: FormData) {
   try {
@@ -61,6 +102,32 @@ export async function createTradeAction(formData: FormData) {
       return { error: "Please provide valid entry and exit date/time." };
     }
 
+    // Validate trade date against session date range
+    const session = await getSessionById(sessionId);
+    if (!session) {
+      return { error: "Session not found." };
+    }
+
+    const startBoundary = new Date(session.periodStart);
+    startBoundary.setHours(0, 0, 0, 0);
+
+    const endBoundary = new Date(session.periodEnd);
+    endBoundary.setHours(23, 59, 59, 999);
+
+    if (entryAt.getTime() < startBoundary.getTime() || entryAt.getTime() > endBoundary.getTime()) {
+      const formattedRange = `${session.periodStart.toISOString().slice(0, 10)} to ${session.periodEnd.toISOString().slice(0, 10)}`;
+      return {
+        error: `Trade entry date (${entryAt.toISOString().slice(0, 10)}) must fall within the session date range (${formattedRange}).`,
+      };
+    }
+
+    if (exitAt.getTime() < startBoundary.getTime() || exitAt.getTime() > endBoundary.getTime()) {
+      const formattedRange = `${session.periodStart.toISOString().slice(0, 10)} to ${session.periodEnd.toISOString().slice(0, 10)}`;
+      return {
+        error: `Trade exit date (${exitAt.toISOString().slice(0, 10)}) must fall within the session date range (${formattedRange}).`,
+      };
+    }
+
     if (direction !== "long" && direction !== "short") {
       return { error: "Direction must be either 'long' or 'short'." };
     }
@@ -98,6 +165,8 @@ export async function createTradeAction(formData: FormData) {
       rr: rr || null,
       ruleChecks,
     });
+
+    await saveTradeImagesFromFormData(trade.id, formData);
 
     revalidatePath(`/sessions/${sessionId}`);
     revalidatePath("/");
@@ -162,6 +231,32 @@ export async function updateTradeAction(formData: FormData) {
       return { error: "Please provide valid entry and exit date/time." };
     }
 
+    // Validate trade date against session date range
+    const session = await getSessionById(sessionId);
+    if (!session) {
+      return { error: "Session not found." };
+    }
+
+    const startBoundary = new Date(session.periodStart);
+    startBoundary.setHours(0, 0, 0, 0);
+
+    const endBoundary = new Date(session.periodEnd);
+    endBoundary.setHours(23, 59, 59, 999);
+
+    if (entryAt.getTime() < startBoundary.getTime() || entryAt.getTime() > endBoundary.getTime()) {
+      const formattedRange = `${session.periodStart.toISOString().slice(0, 10)} to ${session.periodEnd.toISOString().slice(0, 10)}`;
+      return {
+        error: `Trade entry date (${entryAt.toISOString().slice(0, 10)}) must fall within the session date range (${formattedRange}).`,
+      };
+    }
+
+    if (exitAt.getTime() < startBoundary.getTime() || exitAt.getTime() > endBoundary.getTime()) {
+      const formattedRange = `${session.periodStart.toISOString().slice(0, 10)} to ${session.periodEnd.toISOString().slice(0, 10)}`;
+      return {
+        error: `Trade exit date (${exitAt.toISOString().slice(0, 10)}) must fall within the session date range (${formattedRange}).`,
+      };
+    }
+
     if (direction !== "long" && direction !== "short") {
       return { error: "Direction must be either 'long' or 'short'." };
     }
@@ -208,6 +303,8 @@ export async function updateTradeAction(formData: FormData) {
       ruleChecks,
     });
 
+    await saveTradeImagesFromFormData(tradeId, formData);
+
     revalidatePath(`/sessions/${sessionId}`);
     revalidatePath("/");
     return { success: true };
@@ -221,6 +318,16 @@ export async function deleteTradeAction(tradeId: string, sessionId: string) {
   try {
     if (!tradeId) return { error: "Trade ID is required." };
     await deleteTrade(tradeId);
+
+    try {
+      const uploadDir = path.join(process.cwd(), "public", "uploads", "trades", tradeId);
+      if (fs.existsSync(uploadDir)) {
+        fs.rmSync(uploadDir, { recursive: true, force: true });
+      }
+    } catch (fsErr) {
+      console.error("Failed to clean up trade images directory on disk:", fsErr);
+    }
+
     revalidatePath(`/sessions/${sessionId}`);
     revalidatePath("/");
     return { success: true };

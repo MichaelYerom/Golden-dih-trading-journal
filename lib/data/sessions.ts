@@ -109,6 +109,33 @@ export async function createSession(data: CreateSessionInput) {
   });
 }
 
+export interface UpdateSessionInput {
+  name?: string;
+  instrument?: string;
+  periodStart?: Date;
+  periodEnd?: Date;
+  startingBalance?: number;
+  status?: string;
+}
+
+export async function updateSession(id: string, data: UpdateSessionInput) {
+  const user = await getDefaultUser();
+
+  return prisma.session.update({
+    where: {
+      id,
+    },
+    data: {
+      ...(data.name !== undefined && { name: data.name }),
+      ...(data.instrument !== undefined && { instrument: data.instrument }),
+      ...(data.periodStart !== undefined && { periodStart: data.periodStart }),
+      ...(data.periodEnd !== undefined && { periodEnd: data.periodEnd }),
+      ...(data.startingBalance !== undefined && { startingBalance: data.startingBalance }),
+      ...(data.status !== undefined && { status: data.status }),
+    },
+  });
+}
+
 export async function deleteSession(id: string) {
   const user = await getDefaultUser();
 

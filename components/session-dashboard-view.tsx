@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { AddTradeDrawer } from "@/components/add-trade-drawer";
 import { EquityChart } from "@/components/equity-chart";
@@ -8,6 +9,8 @@ import { RDistributionChart } from "@/components/r-distribution-chart";
 import { TradeTable } from "@/components/trade-table";
 import { RuleComplianceCard } from "@/components/rule-compliance-card";
 import { TimeAnalyticsView } from "@/components/time-analytics-view";
+import { SetupLeaderboardView } from "@/components/setup-leaderboard-view";
+import { CalendarHeatmapView } from "@/components/calendar-heatmap-view";
 import {
   TradeEntity,
   SessionStats,
@@ -17,11 +20,15 @@ import {
   RuleEntity,
   RuleComplianceResult,
   TimeAnalyticsResult,
+  SetupAnalyticsResult,
+  CalendarAnalyticsResult,
 } from "@/lib/data/trades";
 import { formatCurrency, formatPercent, formatCurrencyNeutral } from "@/lib/utils";
 import {
   LayoutDashboard,
   Clock,
+  Trophy,
+  CalendarDays,
 } from "lucide-react";
 
 interface SessionDashboardViewProps {
@@ -30,6 +37,7 @@ interface SessionDashboardViewProps {
     instrument: string;
     startingBalance: number;
     periodStart: Date;
+    periodEnd: Date;
   };
   trades: TradeEntity[];
   stats: SessionStats;
@@ -39,6 +47,8 @@ interface SessionDashboardViewProps {
   rules: RuleEntity[];
   compliance: RuleComplianceResult;
   timeAnalytics: TimeAnalyticsResult;
+  setupAnalytics: SetupAnalyticsResult;
+  calendarAnalytics: CalendarAnalyticsResult;
 }
 
 export function SessionDashboardView({
@@ -51,20 +61,39 @@ export function SessionDashboardView({
   rules,
   compliance,
   timeAnalytics,
+  setupAnalytics,
+  calendarAnalytics,
 }: SessionDashboardViewProps) {
-  const [activeTab, setActiveTab] = React.useState<"overview" | "time">("overview");
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const [activeTab, setActiveTab] = React.useState<
+    "overview" | "time" | "setups" | "calendar"
+  >("overview");
+  const [selectedSetupFilter, setSelectedSetupFilter] = React.useState<string | null>(null);
 
   const isProfit = stats.netPnl > 0;
   const isLoss = stats.netPnl < 0;
 
+  const handleSelectSetupFromLeaderboard = (setupName: string) => {
+    setSelectedSetupFilter(setupName);
+    setActiveTab("overview");
+  };
+
+  const handleSelectDateFromCalendar = (dateString: string) => {
+    // Jump to overview and filter trade table to this date
+    router.replace(`${pathname}?start=${dateString}&end=${dateString}`, { scroll: false });
+    setActiveTab("overview");
+  };
+
   return (
     <div className="space-y-5">
       {/* TAB NAVIGATION HEADER */}
-      <div className="flex items-center gap-2 border-b border-border pb-2.5">
+      <div className="flex items-center gap-2 border-b border-border pb-2.5 overflow-x-auto">
         <button
           type="button"
           onClick={() => setActiveTab("overview")}
-          className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all ${
+          className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-all ${
             activeTab === "overview"
               ? "bg-primary text-primary-foreground shadow-sm"
               : "bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80"
@@ -77,7 +106,7 @@ export function SessionDashboardView({
         <button
           type="button"
           onClick={() => setActiveTab("time")}
-          className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all ${
+          className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-all ${
             activeTab === "time"
               ? "bg-primary text-primary-foreground shadow-sm"
               : "bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80"
@@ -94,6 +123,54 @@ export function SessionDashboardView({
               }`}
             >
               {timeAnalytics.totalTradesEvaluated}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("setups")}
+          className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-all ${
+            activeTab === "setups"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80"
+          }`}
+        >
+          <Trophy className="h-3.5 w-3.5" />
+          <span>Setup Leaderboard</span>
+          {setupAnalytics.totalSetupsCount > 0 && (
+            <span
+              className={`rounded-full px-1.5 py-0.2 text-[10px] font-mono-numbers ${
+                activeTab === "setups"
+                  ? "bg-black/30 text-primary-foreground"
+                  : "bg-primary/15 text-primary"
+              }`}
+            >
+              {setupAnalytics.totalSetupsCount}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("calendar")}
+          className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-all ${
+            activeTab === "calendar"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80"
+          }`}
+        >
+          <CalendarDays className="h-3.5 w-3.5" />
+          <span>Calendar Heatmap</span>
+          {calendarAnalytics.dayStreaks.totalTradingDays > 0 && (
+            <span
+              className={`rounded-full px-1.5 py-0.2 text-[10px] font-mono-numbers ${
+                activeTab === "calendar"
+                  ? "bg-black/30 text-primary-foreground"
+                  : "bg-primary/15 text-primary"
+              }`}
+            >
+              {calendarAnalytics.dayStreaks.totalTradingDays}d
             </span>
           )}
         </button>
@@ -428,6 +505,8 @@ export function SessionDashboardView({
                 sessionId={session.id}
                 defaultSymbol={session.instrument}
                 defaultDate={session.periodStart.toISOString()}
+                sessionPeriodStart={session.periodStart}
+                sessionPeriodEnd={session.periodEnd}
                 sessionRules={rules}
               />
             </div>
@@ -435,13 +514,28 @@ export function SessionDashboardView({
             <TradeTable
               trades={trades}
               sessionId={session.id}
+              sessionPeriodStart={session.periodStart}
+              sessionPeriodEnd={session.periodEnd}
               sessionRules={rules}
+              initialSetupFilter={selectedSetupFilter}
             />
           </div>
         </div>
-      ) : (
+      ) : activeTab === "time" ? (
         /* TIME ANALYTICS VIEW TAB */
         <TimeAnalyticsView timeAnalytics={timeAnalytics} />
+      ) : activeTab === "setups" ? (
+        /* SETUP LEADERBOARD TAB */
+        <SetupLeaderboardView
+          setupAnalytics={setupAnalytics}
+          onSelectSetup={handleSelectSetupFromLeaderboard}
+        />
+      ) : (
+        /* CALENDAR HEATMAP TAB */
+        <CalendarHeatmapView
+          calendarAnalytics={calendarAnalytics}
+          onSelectDate={handleSelectDateFromCalendar}
+        />
       )}
     </div>
   );

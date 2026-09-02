@@ -6,6 +6,7 @@ import { getSessionTradesAndStats } from "@/lib/data/trades";
 import { Badge } from "@/components/ui/badge";
 import { AddTradeDrawer } from "@/components/add-trade-drawer";
 import { DeleteSessionButton } from "@/components/delete-session-button";
+import { EditSessionDialog } from "@/components/edit-session-dialog";
 import { SessionRulesDialog } from "@/components/session-rules-dialog";
 import { SessionDashboardView } from "@/components/session-dashboard-view";
 import { formatCurrencyNeutral } from "@/lib/utils";
@@ -26,7 +27,7 @@ export default async function SessionPage({ params }: SessionPageProps) {
     notFound();
   }
 
-  // Fetch all trades, rules, compliance scoring, time analytics, and compute all session stats + equity curve in a single query
+  // Fetch all trades, rules, compliance scoring, time analytics, setup analytics, calendar analytics, and compute all session stats + equity curve in a single query
   const {
     trades,
     stats,
@@ -36,10 +37,13 @@ export default async function SessionPage({ params }: SessionPageProps) {
     rules,
     compliance,
     timeAnalytics,
+    setupAnalytics,
+    calendarAnalytics,
   } = await getSessionTradesAndStats(
     session.id,
     session.startingBalance,
-    session.periodStart
+    session.periodStart,
+    session.periodEnd
   );
 
   const formattedPeriod = `${format(
@@ -99,24 +103,28 @@ export default async function SessionPage({ params }: SessionPageProps) {
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 self-start md:self-center flex-wrap">
+          <EditSessionDialog session={session} trades={trades} />
           <SessionRulesDialog sessionId={session.id} rules={rules} />
           <DeleteSessionButton sessionId={session.id} />
           <AddTradeDrawer
             sessionId={session.id}
             defaultSymbol={session.instrument}
             defaultDate={session.periodStart.toISOString()}
+            sessionPeriodStart={session.periodStart}
+            sessionPeriodEnd={session.periodEnd}
             sessionRules={rules}
           />
         </div>
       </div>
 
-      {/* DASHBOARD TABS: OVERVIEW & TRADES / TIME ANALYSIS */}
+      {/* DASHBOARD TABS: OVERVIEW & TRADES / TIME ANALYSIS / SETUP LEADERBOARD / CALENDAR */}
       <SessionDashboardView
         session={{
           id: session.id,
           instrument: session.instrument,
           startingBalance: session.startingBalance,
           periodStart: session.periodStart,
+          periodEnd: session.periodEnd,
         }}
         trades={trades}
         stats={stats}
@@ -126,6 +134,8 @@ export default async function SessionPage({ params }: SessionPageProps) {
         rules={rules}
         compliance={compliance}
         timeAnalytics={timeAnalytics}
+        setupAnalytics={setupAnalytics}
+        calendarAnalytics={calendarAnalytics}
       />
     </div>
   );

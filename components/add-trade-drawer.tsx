@@ -7,14 +7,17 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Loader2, ShieldCheck, Check, X, Pencil } from "lucide-react";
+import { Plus, Loader2, ShieldCheck, Check, X, Pencil, UploadCloud, Image as ImageIcon, Trash2 } from "lucide-react";
 import { createTradeAction, updateTradeAction } from "@/lib/actions/trade-actions";
-import { RuleEntity, TradeEntity } from "@/lib/data/trades";
+import { deleteTradeImageAction } from "@/lib/actions/trade-image-actions";
+import { RuleEntity, TradeEntity, TradeImageEntity } from "@/lib/data/trades";
 
 interface AddTradeDrawerProps {
   sessionId: string;
   defaultSymbol?: string;
   defaultDate?: string;
+  sessionPeriodStart?: Date | string;
+  sessionPeriodEnd?: Date | string;
   sessionRules?: RuleEntity[];
   tradeToEdit?: TradeEntity | null;
   open?: boolean;
@@ -26,6 +29,8 @@ export function AddTradeDrawer({
   sessionId,
   defaultSymbol = "",
   defaultDate,
+  sessionPeriodStart,
+  sessionPeriodEnd,
   sessionRules = [],
   tradeToEdit = null,
   open: controlledOpen,
@@ -48,15 +53,45 @@ export function AddTradeDrawer({
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const getNowLocalIso = React.useCallback((offsetMinutes = 0, baseDate?: string | Date) => {
-    const now = baseDate ? new Date(baseDate) : defaultDate ? new Date(defaultDate) : new Date();
-    if (isNaN(now.getTime())) return new Date().toISOString().slice(0, 16);
-    if (offsetMinutes) {
-      now.setMinutes(now.getMinutes() + offsetMinutes);
-    }
-    const offset = now.getTimezoneOffset() * 60000;
-    return new Date(now.getTime() - offset).toISOString().slice(0, 16);
-  }, [defaultDate]);
+  const sessionStartBoundary = React.useMemo(() => {
+    if (!sessionPeriodStart) return null;
+    const d = new Date(sessionPeriodStart);
+    if (isNaN(d.getTime())) return null;
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, [sessionPeriodStart]);
+
+  const sessionEndBoundary = React.useMemo(() => {
+    if (!sessionPeriodEnd) return null;
+    const d = new Date(sessionPeriodEnd);
+    if (isNaN(d.getTime())) return null;
+    d.setHours(23, 59, 59, 999);
+    return d;
+  }, [sessionPeriodEnd]);
+
+  const getInitialIso = React.useCallback(
+    (offsetMinutes = 0, baseDate?: string | Date) => {
+      let targetDate: Date;
+      if (baseDate) {
+        targetDate = new Date(baseDate);
+      } else if (defaultDate) {
+        targetDate = new Date(defaultDate);
+      } else if (sessionPeriodStart) {
+        targetDate = new Date(sessionPeriodStart);
+        targetDate.setHours(9, 30, 0, 0);
+      } else {
+        targetDate = new Date();
+      }
+
+      if (isNaN(targetDate.getTime())) return new Date().toISOString().slice(0, 16);
+      if (offsetMinutes) {
+        targetDate.setMinutes(targetDate.getMinutes() + offsetMinutes);
+      }
+      const offset = targetDate.getTimezoneOffset() * 60000;
+      return new Date(targetDate.getTime() - offset).toISOString().slice(0, 16);
+    },
+    [defaultDate, sessionPeriodStart]
+  );
 
   // Form states for core fields
   const [symbol, setSymbol] = React.useState(defaultSymbol);
@@ -66,8 +101,8 @@ export function AddTradeDrawer({
   const [exitPrice, setExitPrice] = React.useState<string>("");
   const [grossPnl, setGrossPnl] = React.useState<string>("");
   const [result, setResult] = React.useState<"win" | "loss" | "breakeven">("win");
-  const [entryAt, setEntryAt] = React.useState(getNowLocalIso(0));
-  const [exitAt, setExitAt] = React.useState(getNowLocalIso(15));
+  const [entryAt, setEntryAt] = React.useState(getInitialIso(0));
+  const [exitAt, setExitAt] = React.useState(getInitialIso(15));
 
   // Optional backtest fields
   const [htfBias, setHtfBias] = React.useState<string>("");
@@ -83,6 +118,19 @@ export function AddTradeDrawer({
   // Rule checks state: mapping of ruleId -> boolean
   const [ruleChecksState, setRuleChecksState] = React.useState<Record<string, boolean>>({});
 
+  // Screenshot / image attachments state
+  interface PendingImage {
+    id: string;
+    file: File;
+    previewUrl: string;
+    label: string;
+  }
+  const [pendingImages, setPendingImages] = React.useState<PendingImage[]>([]);
+  const [existingImages, setExistingImages] = React.useState<TradeImageEntity[]>([]);
+  const [deletingImageId, setDeletingImageId] = React.useState<string | null>(null);
+  const [isDragging, setIsDragging] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
   // Populate/reset values whenever tradeToEdit or open state changes
   React.useEffect(() => {
     if (open) {
@@ -94,8 +142,8 @@ export function AddTradeDrawer({
         setExitPrice(tradeToEdit.exitPrice.toString());
         setGrossPnl(tradeToEdit.grossPnl.toString());
         setResult(tradeToEdit.result as "win" | "loss" | "breakeven");
-        setEntryAt(getNowLocalIso(0, tradeToEdit.entryAt));
-        setExitAt(getNowLocalIso(0, tradeToEdit.exitAt));
+        setEntryAt(getInitialIso(0, tradeToEdit.entryAt));
+        setExitAt(getInitialIso(0, tradeToEdit.exitAt));
         setHtfBias(tradeToEdit.htfBias || "");
         setRr(tradeToEdit.rr || "");
         setRiskPercent(
@@ -109,6 +157,8 @@ export function AddTradeDrawer({
         setEmotionalState(tradeToEdit.emotionalState || "");
         setNotes(tradeToEdit.notes || "");
         setSingleRuleFollowed(tradeToEdit.rulesFollowed ?? true);
+        setExistingImages(tradeToEdit.images || []);
+        setPendingImages([]);
 
         const initialChecks: Record<string, boolean> = {};
         sessionRules.forEach((r) => {
@@ -132,8 +182,8 @@ export function AddTradeDrawer({
         setExitPrice("");
         setGrossPnl("");
         setResult("win");
-        setEntryAt(getNowLocalIso(0));
-        setExitAt(getNowLocalIso(15));
+        setEntryAt(getInitialIso(0));
+        setExitAt(getInitialIso(15));
         setHtfBias("");
         setRr("");
         setRiskPercent("");
@@ -143,6 +193,8 @@ export function AddTradeDrawer({
         setEmotionalState("");
         setNotes("");
         setSingleRuleFollowed(true);
+        setExistingImages([]);
+        setPendingImages([]);
 
         const initialChecks: Record<string, boolean> = {};
         sessionRules.forEach((r) => {
@@ -152,7 +204,64 @@ export function AddTradeDrawer({
         setError(null);
       }
     }
-  }, [open, tradeToEdit, defaultSymbol, sessionRules, getNowLocalIso]);
+  }, [open, tradeToEdit, defaultSymbol, sessionRules, getInitialIso]);
+
+  const handleAddFiles = (files: FileList | File[]) => {
+    const allowedMime = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    const allowedExts = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
+    const newItems: PendingImage[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (file.size > 5 * 1024 * 1024) {
+        setError(`"${file.name}" exceeds 5MB maximum file size.`);
+        continue;
+      }
+      const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+      if (!allowedMime.includes(file.type) && !allowedExts.includes(ext)) {
+        setError(`"${file.name}" is not a supported image format (JPG, PNG, WebP, GIF only).`);
+        continue;
+      }
+
+      newItems.push({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+        label: "Entry",
+      });
+    }
+
+    if (newItems.length > 0) {
+      setPendingImages((prev) => [...prev, ...newItems]);
+    }
+  };
+
+  const handleDeleteExistingImage = async (imageId: string) => {
+    setDeletingImageId(imageId);
+    const res = await deleteTradeImageAction(imageId, sessionId);
+    setDeletingImageId(null);
+    if (res?.error) {
+      setError(res.error);
+    } else {
+      setExistingImages((prev) => prev.filter((img) => img.id !== imageId));
+    }
+  };
+
+  const dateRangeError = React.useMemo(() => {
+    if (!sessionStartBoundary || !sessionEndBoundary) return null;
+    const eTime = new Date(entryAt).getTime();
+    const xTime = new Date(exitAt).getTime();
+    const startStr = sessionStartBoundary.toISOString().slice(0, 10);
+    const endStr = sessionEndBoundary.toISOString().slice(0, 10);
+
+    if (!isNaN(eTime) && (eTime < sessionStartBoundary.getTime() || eTime > sessionEndBoundary.getTime())) {
+      return `Entry date must fall within the session period (${startStr} – ${endStr}).`;
+    }
+    if (!isNaN(xTime) && (xTime < sessionStartBoundary.getTime() || xTime > sessionEndBoundary.getTime())) {
+      return `Exit date must fall within the session period (${startStr} – ${endStr}).`;
+    }
+    return null;
+  }, [entryAt, exitAt, sessionStartBoundary, sessionEndBoundary]);
 
   const previewR = React.useMemo(() => {
     const ep = parseFloat(entryPrice);
@@ -189,6 +298,11 @@ export function AddTradeDrawer({
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (dateRangeError) {
+      setError(dateRangeError);
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
@@ -224,6 +338,15 @@ export function AddTradeDrawer({
     } else {
       formData.set("rulesFollowed", singleRuleFollowed ? "true" : "false");
     }
+
+    // Attach pending screenshot image files and their labels
+    for (const p of pendingImages) {
+      formData.append("pendingImages", p.file);
+    }
+    formData.set(
+      "pendingImageLabels",
+      JSON.stringify(pendingImages.map((p) => p.label))
+    );
 
     let res;
     if (isEditMode && tradeToEdit) {
@@ -336,36 +459,44 @@ export function AddTradeDrawer({
             </div>
 
             {/* Entry & Exit Timestamps */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  Entry Date & Time <span className="text-[#DB5461]">*</span>
-                </label>
-                <Input
-                  name="entryAt"
-                  type="datetime-local"
-                  value={entryAt}
-                  onChange={(e) => setEntryAt(e.target.value)}
-                  className="font-mono-numbers text-xs"
-                  required
-                  disabled={isSubmitting}
-                />
+            <div className="space-y-1.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Entry Date & Time <span className="text-[#DB5461]">*</span>
+                  </label>
+                  <Input
+                    name="entryAt"
+                    type="datetime-local"
+                    value={entryAt}
+                    onChange={(e) => setEntryAt(e.target.value)}
+                    className="font-mono-numbers text-xs"
+                    required
+                    disabled={isSubmitting}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Exit Date & Time <span className="text-[#DB5461]">*</span>
+                  </label>
+                  <Input
+                    name="exitAt"
+                    type="datetime-local"
+                    value={exitAt}
+                    onChange={(e) => setExitAt(e.target.value)}
+                    className="font-mono-numbers text-xs"
+                    required
+                    disabled={isSubmitting}
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  Exit Date & Time <span className="text-[#DB5461]">*</span>
-                </label>
-                <Input
-                  name="exitAt"
-                  type="datetime-local"
-                  value={exitAt}
-                  onChange={(e) => setExitAt(e.target.value)}
-                  className="font-mono-numbers text-xs"
-                  required
-                  disabled={isSubmitting}
-                />
-              </div>
+              {dateRangeError && (
+                <p className="text-[11px] text-[#DB5461] font-medium pt-0.5">
+                  {dateRangeError}
+                </p>
+              )}
             </div>
 
             {/* Entry, Stop Loss & Exit Prices */}
@@ -720,6 +851,145 @@ export function AddTradeDrawer({
             </div>
           </div>
 
+          {/* SECTION 4: CHART SCREENSHOTS & ATTACHMENTS */}
+          <div className="space-y-3 rounded-lg border border-border bg-card p-3.5">
+            <div className="flex items-center justify-between pb-1.5 border-b border-border">
+              <div className="flex items-center gap-1.5">
+                <ImageIcon className="h-3.5 w-3.5 text-primary" />
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-primary">
+                  Chart Screenshots & Analysis
+                </span>
+              </div>
+              <span className="text-[10px] text-muted-foreground">Optional &bull; Max 5MB each</span>
+            </div>
+
+            {/* Dropzone */}
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                if (e.dataTransfer.files) handleAddFiles(e.dataTransfer.files);
+              }}
+              onClick={() => fileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors duration-150 flex flex-col items-center justify-center gap-1.5 ${
+                isDragging
+                  ? "border-primary bg-primary/10"
+                  : "border-border hover:border-primary/50 hover:bg-secondary/40"
+              }`}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/png, image/jpeg, image/webp, image/gif"
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files) handleAddFiles(e.target.files);
+                }}
+              />
+              <UploadCloud className="h-6 w-6 text-muted-foreground" />
+              <div className="text-xs font-medium text-foreground">
+                Click to upload or drag &amp; drop screenshots
+              </div>
+              <div className="text-[10px] text-muted-foreground">
+                PNG, JPG, WebP, GIF (up to 5MB)
+              </div>
+            </div>
+
+            {/* Preview of Existing & Pending Images */}
+            {(existingImages.length > 0 || pendingImages.length > 0) && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                {/* Existing Saved Images */}
+                {existingImages.map((img) => (
+                  <div
+                    key={img.id}
+                    className="relative rounded-md border border-border bg-secondary/30 p-2 flex items-center gap-2.5 overflow-hidden"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={img.url}
+                      alt={img.label || "Screenshot"}
+                      className="w-14 h-14 object-cover rounded border border-border shrink-0 bg-background"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <span className="inline-block text-[10px] font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 truncate">
+                        {img.label || "Screenshot"}
+                      </span>
+                      <div className="text-[10px] text-muted-foreground truncate mt-0.5">Saved</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteExistingImage(img.id);
+                      }}
+                      disabled={deletingImageId === img.id || isSubmitting}
+                      className="p-1 rounded text-muted-foreground hover:text-[#DB5461] hover:bg-[#DB5461]/10 transition-colors shrink-0"
+                      title="Remove screenshot"
+                    >
+                      {deletingImageId === img.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  </div>
+                ))}
+
+                {/* Pending Newly Added Images */}
+                {pendingImages.map((p, idx) => (
+                  <div
+                    key={p.id}
+                    className="relative rounded-md border border-primary/30 bg-primary/5 p-2 flex items-center gap-2.5 overflow-hidden"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={p.previewUrl}
+                      alt="New screenshot preview"
+                      className="w-14 h-14 object-cover rounded border border-border shrink-0 bg-background"
+                    />
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <Select
+                        value={p.label}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setPendingImages((prev) =>
+                            prev.map((item, i) => (i === idx ? { ...item, label: val } : item))
+                          );
+                        }}
+                        className="h-6 text-[11px] bg-card py-0 px-1.5"
+                      >
+                        <option value="Entry">Entry</option>
+                        <option value="HTF Context">HTF Context</option>
+                        <option value="Exit">Exit</option>
+                        <option value="Other">Other</option>
+                      </Select>
+                      <div className="text-[9px] text-muted-foreground truncate font-mono-numbers">
+                        {p.file.name} ({(p.file.size / 1024).toFixed(0)} KB)
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        URL.revokeObjectURL(p.previewUrl);
+                        setPendingImages((prev) => prev.filter((_, i) => i !== idx));
+                      }}
+                      className="p-1 rounded text-muted-foreground hover:text-[#DB5461] hover:bg-[#DB5461]/10 transition-colors shrink-0"
+                      title="Remove from upload"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <SheetFooter>
             <Button
               type="button"
@@ -729,7 +999,11 @@ export function AddTradeDrawer({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting} className="min-w-[110px]">
+            <Button
+              type="submit"
+              disabled={isSubmitting || Boolean(dateRangeError)}
+              className="min-w-[110px]"
+            >
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
