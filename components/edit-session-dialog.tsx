@@ -19,7 +19,7 @@ import { TradeEntity } from "@/lib/data/trades";
 interface EditSessionDialogProps {
   session: {
     id: string;
-    name: string;
+    name?: string | null;
     instrument: string;
     startingBalance: number;
     periodStart: Date | string;
@@ -27,15 +27,30 @@ interface EditSessionDialogProps {
     status: string;
   };
   trades?: TradeEntity[];
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   trigger?: React.ReactNode;
 }
 
 export function EditSessionDialog({
   session,
   trades = [],
+  open: controlledOpen,
+  onOpenChange,
   trigger,
 }: EditSessionDialogProps) {
-  const [open, setOpen] = React.useState(false);
+  const [internalOpen, setInternalOpen] = React.useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+
+  const setOpen = (val: boolean) => {
+    if (isControlled) {
+      onOpenChange?.(val);
+    } else {
+      setInternalOpen(val);
+    }
+  };
+
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 

@@ -1,6 +1,7 @@
 import { getAllSessions } from "@/lib/data/sessions";
 import { SessionCard } from "@/components/session-card";
 import { CreateSessionDialog } from "@/components/create-session-dialog";
+import { ImportSessionDialog } from "@/components/import-session-dialog";
 import { Card } from "@/components/ui/card";
 import { Plus, BarChart2 } from "lucide-react";
 
@@ -25,7 +26,8 @@ export default async function HomePage() {
           </p>
         </div>
 
-        <div>
+        <div className="flex items-center gap-2">
+          <ImportSessionDialog />
           <CreateSessionDialog />
         </div>
       </div>

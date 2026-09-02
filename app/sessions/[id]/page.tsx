@@ -5,8 +5,7 @@ import { getSessionById } from "@/lib/data/sessions";
 import { getSessionTradesAndStats } from "@/lib/data/trades";
 import { Badge } from "@/components/ui/badge";
 import { AddTradeDrawer } from "@/components/add-trade-drawer";
-import { DeleteSessionButton } from "@/components/delete-session-button";
-import { EditSessionDialog } from "@/components/edit-session-dialog";
+import { SessionSettingsMenu } from "@/components/session-settings-menu";
 import { SessionRulesDialog } from "@/components/session-rules-dialog";
 import { SessionDashboardView } from "@/components/session-dashboard-view";
 import { formatCurrencyNeutral } from "@/lib/utils";
@@ -103,9 +102,26 @@ export default async function SessionPage({ params }: SessionPageProps) {
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 self-start md:self-center flex-wrap">
-          <EditSessionDialog session={session} trades={trades} />
+          <SessionSettingsMenu
+            session={{
+              id: session.id,
+              name: session.name,
+              instrument: session.instrument,
+              startingBalance: session.startingBalance,
+              periodStart: session.periodStart,
+              periodEnd: session.periodEnd,
+            }}
+            trades={trades}
+            stats={stats}
+            equityCurve={equityCurve}
+            rDistribution={rDistribution}
+            drawdownDetails={drawdownDetails}
+            rules={rules}
+            compliance={compliance}
+            timeAnalytics={timeAnalytics}
+            setupAnalytics={setupAnalytics}
+          />
           <SessionRulesDialog sessionId={session.id} rules={rules} />
-          <DeleteSessionButton sessionId={session.id} />
           <AddTradeDrawer
             sessionId={session.id}
             defaultSymbol={session.instrument}
