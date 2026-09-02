@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getDefaultUser } from "./user";
+import { getCurrentUser, requireUser } from "@/lib/auth/get-user";
 
 export interface SessionWithQuickStats {
   id: string;
@@ -30,7 +30,10 @@ export interface CreateSessionInput {
 }
 
 export async function getAllSessions(): Promise<SessionWithQuickStats[]> {
-  const user = await getDefaultUser();
+  const user = await getCurrentUser();
+  if (!user) {
+    return [];
+  }
 
   const sessions = await prisma.session.findMany({
     where: { userId: user.id },
@@ -83,7 +86,10 @@ export async function getAllSessions(): Promise<SessionWithQuickStats[]> {
 }
 
 export async function getSessionById(id: string) {
-  const user = await getDefaultUser();
+  const user = await getCurrentUser();
+  if (!user) {
+    return null;
+  }
 
   return prisma.session.findFirst({
     where: {
@@ -94,7 +100,7 @@ export async function getSessionById(id: string) {
 }
 
 export async function createSession(data: CreateSessionInput) {
-  const user = await getDefaultUser();
+  const user = await requireUser();
 
   return prisma.session.create({
     data: {
@@ -119,7 +125,15 @@ export interface UpdateSessionInput {
 }
 
 export async function updateSession(id: string, data: UpdateSessionInput) {
-  const user = await getDefaultUser();
+  const user = await requireUser();
+
+  const existing = await prisma.session.findFirst({
+    where: { id, userId: user.id },
+  });
+
+  if (!existing) {
+    throw new Error("Session not found or unauthorized");
+  }
 
   return prisma.session.update({
     where: {
@@ -137,7 +151,7 @@ export async function updateSession(id: string, data: UpdateSessionInput) {
 }
 
 export async function deleteSession(id: string) {
-  const user = await getDefaultUser();
+  const user = await requireUser();
 
   return prisma.session.deleteMany({
     where: {

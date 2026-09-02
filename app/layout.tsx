@@ -2,17 +2,21 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Link from "next/link";
 import { TrendingUp, Database } from "lucide-react";
+import { getCurrentUser } from "@/lib/auth/get-user";
+import { UserNav } from "@/components/user-nav";
 
 export const metadata: Metadata = {
   title: "Golden DIH — Backtesting Trade Journal",
   description: "Minimal, ultra-fast, reliable backtesting trade journal and performance tracker.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const user = await getCurrentUser();
+
   return (
     <html lang="en" className="dark">
       <body className="font-sans min-h-screen bg-background text-foreground flex flex-col antialiased">
@@ -33,11 +37,12 @@ export default function RootLayout({
               </div>
             </Link>
 
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-card border border-border text-[11px]">
-                <Database className="h-3 w-3 text-muted-foreground" />
-                <span>SQLite</span>
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-card border border-border text-[11px] text-muted-foreground">
+                <Database className="h-3 w-3 text-emerald-400" />
+                <span>Supabase</span>
               </div>
+              <UserNav user={user} />
             </div>
           </div>
         </header>

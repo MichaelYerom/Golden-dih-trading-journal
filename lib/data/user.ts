@@ -1,14 +1,17 @@
+import { getCurrentUser, requireUser } from "@/lib/auth/get-user";
 import { prisma } from "@/lib/prisma";
 
 export async function getDefaultUser() {
-  const defaultEmail = "default@replayjournal.local";
+  const user = await getCurrentUser();
+  if (user) {
+    return prisma.user.findUniqueOrThrow({
+      where: { id: user.id },
+    });
+  }
 
-  return prisma.user.upsert({
-    where: { email: defaultEmail },
-    update: {},
-    create: {
-      email: defaultEmail,
-      name: "Default Trader",
-    },
+  // Fallback to requiring user redirect
+  const required = await requireUser();
+  return prisma.user.findUniqueOrThrow({
+    where: { id: required.id },
   });
 }

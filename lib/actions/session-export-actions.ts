@@ -5,7 +5,7 @@ import path from "path";
 import crypto from "crypto";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getDefaultUser } from "@/lib/data/user";
+import { requireUser } from "@/lib/auth/get-user";
 
 export interface SessionExportSnapshot {
   schemaVersion: number;
@@ -62,12 +62,13 @@ export async function exportSessionSnapshotAction(sessionId: string): Promise<{
   error?: string;
 }> {
   try {
+    const user = await requireUser();
     if (!sessionId) {
       return { error: "Session ID is required for export." };
     }
 
-    const session = await prisma.session.findUnique({
-      where: { id: sessionId },
+    const session = await prisma.session.findFirst({
+      where: { id: sessionId, userId: user.id },
       include: {
         rules: {
           orderBy: { createdAt: "asc" },
@@ -85,7 +86,7 @@ export async function exportSessionSnapshotAction(sessionId: string): Promise<{
     });
 
     if (!session) {
-      return { error: "Session not found." };
+      return { error: "Session not found or unauthorized." };
     }
 
     const exportedTrades = await Promise.all(
@@ -213,7 +214,7 @@ export async function importSessionSnapshotAction(snapshotJson: string): Promise
     }
 
     // Create new session in Prisma
-    const user = await getDefaultUser();
+    const user = await requireUser();
     const newSession = await prisma.session.create({
       data: {
         userId: user.id,

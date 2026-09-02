@@ -5,6 +5,7 @@ import path from "path";
 import crypto from "crypto";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth/get-user";
 
 const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
@@ -28,6 +29,7 @@ export async function uploadTradeImageAction(formData: FormData): Promise<{
   error?: string;
 }> {
   try {
+    const user = await requireUser();
     const tradeId = formData.get("tradeId") as string;
     const sessionId = formData.get("sessionId") as string;
     const label = (formData.get("label") as string) || null;
@@ -52,14 +54,17 @@ export async function uploadTradeImageAction(formData: FormData): Promise<{
       };
     }
 
-    // Verify trade exists
-    const trade = await prisma.trade.findUnique({
-      where: { id: tradeId },
+    // Verify trade exists and belongs to current user's session
+    const trade = await prisma.trade.findFirst({
+      where: {
+        id: tradeId,
+        session: { userId: user.id },
+      },
       select: { id: true, sessionId: true },
     });
 
     if (!trade) {
-      return { error: "Trade not found." };
+      return { error: "Trade not found or unauthorized." };
     }
 
     const ext = fileExt || ".png";
@@ -114,12 +119,16 @@ export async function deleteTradeImageAction(
   sessionId?: string
 ): Promise<{ success?: boolean; error?: string }> {
   try {
+    const user = await requireUser();
     if (!imageId) {
       return { error: "Image ID is required." };
     }
 
-    const image = await prisma.tradeImage.findUnique({
-      where: { id: imageId },
+    const image = await prisma.tradeImage.findFirst({
+      where: {
+        id: imageId,
+        trade: { session: { userId: user.id } },
+      },
       include: {
         trade: {
           select: { sessionId: true },
@@ -128,7 +137,7 @@ export async function deleteTradeImageAction(
     });
 
     if (!image) {
-      return { error: "Image not found." };
+      return { error: "Image not found or unauthorized." };
     }
 
     // Delete DB record

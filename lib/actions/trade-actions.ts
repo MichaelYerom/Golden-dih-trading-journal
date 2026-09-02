@@ -317,6 +317,13 @@ export async function updateTradeAction(formData: FormData) {
 export async function deleteTradeAction(tradeId: string, sessionId: string) {
   try {
     if (!tradeId) return { error: "Trade ID is required." };
+    if (!sessionId) return { error: "Session ID is required." };
+
+    const session = await getSessionById(sessionId);
+    if (!session) {
+      return { error: "Session not found or unauthorized." };
+    }
+
     await deleteTrade(tradeId);
 
     try {
