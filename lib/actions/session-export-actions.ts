@@ -5,6 +5,7 @@ import path from "path";
 import crypto from "crypto";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { getDefaultUser } from "@/lib/data/user";
 
 export interface SessionExportSnapshot {
   schemaVersion: number;
@@ -16,7 +17,6 @@ export interface SessionExportSnapshot {
     periodStart: string;
     periodEnd: string;
     status: string;
-    notes?: string | null;
   };
   rules: {
     id: string;
@@ -160,7 +160,6 @@ export async function exportSessionSnapshotAction(sessionId: string): Promise<{
         periodStart: session.periodStart.toISOString(),
         periodEnd: session.periodEnd.toISOString(),
         status: session.status,
-        notes: session.notes,
       },
       rules: session.rules.map((r) => ({
         id: r.id,
@@ -214,15 +213,16 @@ export async function importSessionSnapshotAction(snapshotJson: string): Promise
     }
 
     // Create new session in Prisma
+    const user = await getDefaultUser();
     const newSession = await prisma.session.create({
       data: {
+        userId: user.id,
         name: data.session.name ? `${data.session.name} (Imported)` : `${data.session.instrument} (Imported)`,
         instrument: data.session.instrument.toUpperCase().trim(),
         startingBalance: data.session.startingBalance,
         periodStart: pStart,
         periodEnd: pEnd,
         status: data.session.status || "active",
-        notes: data.session.notes || null,
       },
     });
 

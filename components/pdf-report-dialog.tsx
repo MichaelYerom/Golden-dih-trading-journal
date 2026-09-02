@@ -297,14 +297,14 @@ export function PdfReportDialog({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {setupAnalytics.setups.slice(0, 5).map((s) => (
-                    <tr key={s.setupModel} className="hover:bg-secondary/30">
+                  {setupAnalytics.setups.slice(0, 5).map((s, idx) => (
+                    <tr key={`${s.setup}-${idx}`} className="hover:bg-secondary/30">
                       <td className="px-3 py-1.5 font-medium text-foreground print:text-black">
-                        {s.setupModel}
+                        {s.setup}
                       </td>
-                      <td className="px-3 py-1.5 text-right font-mono-numbers">{s.tradeCount}</td>
+                      <td className="px-3 py-1.5 text-right font-mono-numbers">{s.count}</td>
                       <td className="px-3 py-1.5 text-right font-mono-numbers">
-                        {(s.winRate * 100).toFixed(0)}%
+                        {s.winRate !== null ? `${(s.winRate * 100).toFixed(0)}%` : "—"}
                       </td>
                       <td className="px-3 py-1.5 text-right font-mono-numbers">
                         {s.expectancy !== null ? `${s.expectancy > 0 ? "+" : ""}${s.expectancy.toFixed(2)}R` : "—"}
@@ -338,11 +338,11 @@ export function PdfReportDialog({
             <div className="space-y-1 text-muted-foreground print:text-gray-700 text-[11px]">
               <div>
                 <strong className="text-foreground print:text-black">Peak Performance Hour: </strong>
-                {timeAnalytics.hourly.find((h) => h.totalPnl > 0)?.hourLabel || "N/A"}
+                {timeAnalytics.bestHour?.label || timeAnalytics.hourly.find((h) => h.totalPnl > 0)?.label || "N/A"}
               </div>
               <div>
                 <strong className="text-foreground print:text-black">Best Trading Day: </strong>
-                {timeAnalytics.dayOfWeek.find((d) => d.totalPnl > 0)?.dayName || "N/A"}
+                {timeAnalytics.bestDay?.dayName || timeAnalytics.dayOfWeek.find((d) => d.totalPnl > 0)?.dayName || "N/A"}
               </div>
             </div>
           </div>
@@ -355,11 +355,15 @@ export function PdfReportDialog({
             <div className="space-y-1 text-muted-foreground print:text-gray-700 text-[11px]">
               <div>
                 <strong className="text-foreground print:text-black">Followed Rules WR: </strong>
-                {compliance.followedWinRate !== null ? `${(compliance.followedWinRate * 100).toFixed(0)}%` : "N/A"}
+                {compliance.performanceSplit.followed.count > 0
+                  ? `${(compliance.performanceSplit.followed.winRate * 100).toFixed(0)}% (${compliance.performanceSplit.followed.count} trades)`
+                  : "N/A"}
               </div>
               <div>
                 <strong className="text-foreground print:text-black">Broken Rules WR: </strong>
-                {compliance.brokenWinRate !== null ? `${(compliance.brokenWinRate * 100).toFixed(0)}%` : "N/A"}
+                {compliance.performanceSplit.broken.count > 0
+                  ? `${(compliance.performanceSplit.broken.winRate * 100).toFixed(0)}% (${compliance.performanceSplit.broken.count} trades)`
+                  : "N/A"}
               </div>
             </div>
           </div>

@@ -39,6 +39,7 @@ interface SessionSettingsMenuProps {
     startingBalance: number;
     periodStart: Date;
     periodEnd: Date;
+    status?: string;
   };
   trades: TradeEntity[];
   stats: SessionStats;
@@ -246,7 +247,10 @@ export function SessionSettingsMenu({
 
       {/* Controlled Sub-dialogs */}
       <EditSessionDialog
-        session={session}
+        session={{
+          ...session,
+          status: session.status || "active",
+        }}
         trades={trades}
         open={editOpen}
         onOpenChange={setEditOpen}

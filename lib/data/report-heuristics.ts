@@ -39,11 +39,13 @@ export function generateReportRecommendations(params: {
   }
 
   // 1. RULE COMPLIANCE HEURISTIC
-  if (compliance.totalTradesWithCheck > 0) {
-    const followedWR = compliance.followedWinRate;
-    const brokenWR = compliance.brokenWinRate;
+  if (compliance.totalEvaluatedTrades > 0) {
+    const followedCount = compliance.performanceSplit.followed.count;
+    const brokenCount = compliance.performanceSplit.broken.count;
+    const followedWR = compliance.performanceSplit.followed.winRate;
+    const brokenWR = compliance.performanceSplit.broken.winRate;
 
-    if (followedWR !== null && brokenWR !== null && followedWR > brokenWR + 10) {
+    if (followedCount > 0 && brokenCount > 0 && followedWR !== null && brokenWR !== null && followedWR > brokenWR + 0.1) {
       recommendations.push({
         id: "compliance-edge",
         category: "discipline",
@@ -53,20 +55,30 @@ export function generateReportRecommendations(params: {
       });
     }
 
-    if (compliance.worstRule) {
-      recommendations.push({
-        id: "worst-rule",
-        category: "discipline",
-        title: `Watch Rule Violations: "${compliance.worstRule.text}"`,
-        description: `This rule was broken ${compliance.worstRule.brokenCount} times (${(compliance.worstRule.complianceRate * 100).toFixed(0)}% adherence). Focus specifically on confirming this condition before entering.`,
-        severity: "warning",
-      });
+    if (compliance.perRuleBreakdown.length > 0) {
+      const mostBrokenRule = compliance.perRuleBreakdown
+        .filter((r) => r.timesBroken > 0)
+        .sort((a, b) => b.timesBroken - a.timesBroken)[0];
+
+      if (mostBrokenRule) {
+        const adherencePct = mostBrokenRule.totalEvaluations > 0
+          ? ((mostBrokenRule.timesFollowed / mostBrokenRule.totalEvaluations) * 100).toFixed(0)
+          : "0";
+
+        recommendations.push({
+          id: "worst-rule",
+          category: "discipline",
+          title: `Watch Rule Violations: "${mostBrokenRule.text}"`,
+          description: `This rule was broken ${mostBrokenRule.timesBroken} times (${adherencePct}% adherence). Focus specifically on confirming this condition before entering.`,
+          severity: "warning",
+        });
+      }
     }
   }
 
   // 2. TIMING & SESSION WINDOW HEURISTICS
   if (timeAnalytics.hourly.length > 0) {
-    const activeHours = timeAnalytics.hourly.filter((h) => h.tradeCount >= 2);
+    const activeHours = timeAnalytics.hourly.filter((h) => h.count >= 2);
     const worstHour = activeHours.reduce<typeof timeAnalytics.hourly[0] | null>((worst, curr) => {
       if (curr.totalPnl < 0 && (!worst || curr.totalPnl < worst.totalPnl)) return curr;
       return worst;
@@ -78,21 +90,23 @@ export function generateReportRecommendations(params: {
     }, null);
 
     if (worstHour && worstHour.totalPnl < -50) {
+      const wrText = worstHour.winRate !== null ? (worstHour.winRate * 100).toFixed(0) : "0";
       recommendations.push({
         id: "timing-hour-leak",
         category: "timing",
-        title: `Reduce Exposure During ${worstHour.hourLabel}`,
-        description: `The ${worstHour.hourLabel} window generated a net P&L of -$${Math.abs(worstHour.totalPnl).toFixed(0)} across ${worstHour.tradeCount} trades (Win Rate: ${worstHour.winRate !== null ? (worstHour.winRate * 100).toFixed(0) : 0}%). Consider skipping entries during this timeframe.`,
+        title: `Reduce Exposure During ${worstHour.label}`,
+        description: `The ${worstHour.label} window generated a net P&L of -$${Math.abs(worstHour.totalPnl).toFixed(0)} across ${worstHour.count} trades (Win Rate: ${wrText}%). Consider skipping entries during this timeframe.`,
         severity: "warning",
       });
     }
 
     if (bestHour && bestHour.totalPnl > 100) {
+      const wrText = bestHour.winRate !== null ? (bestHour.winRate * 100).toFixed(0) : "0";
       recommendations.push({
         id: "timing-hour-edge",
         category: "timing",
-        title: `Prime Execution Window: ${bestHour.hourLabel}`,
-        description: `Your highest performance occurs at ${bestHour.hourLabel} with +$${bestHour.totalPnl.toFixed(0)} net return and a ${(bestHour.winRate! * 100).toFixed(0)}% win rate. Prioritize setups formed in this period.`,
+        title: `Prime Execution Window: ${bestHour.label}`,
+        description: `Your highest performance occurs at ${bestHour.label} with +$${bestHour.totalPnl.toFixed(0)} net return and a ${wrText}% win rate. Prioritize setups formed in this period.`,
         severity: "positive",
       });
     }
@@ -100,14 +114,15 @@ export function generateReportRecommendations(params: {
 
   // Day of week anomaly
   if (timeAnalytics.dayOfWeek.length > 0) {
-    const activeDays = timeAnalytics.dayOfWeek.filter((d) => d.tradeCount >= 2);
+    const activeDays = timeAnalytics.dayOfWeek.filter((d) => d.count >= 2);
     const worstDay = activeDays.find((d) => d.totalPnl < 0 && (d.winRate === null || d.winRate < 0.35));
     if (worstDay) {
+      const wrText = worstDay.winRate !== null ? (worstDay.winRate * 100).toFixed(0) : "0";
       recommendations.push({
         id: "timing-day-leak",
         category: "timing",
         title: `Underperforming Weekday: ${worstDay.dayName}`,
-        description: `${worstDay.dayName} executions have a low win rate of ${worstDay.winRate !== null ? (worstDay.winRate * 100).toFixed(0) : 0}% and -$${Math.abs(worstDay.totalPnl).toFixed(0)} P&L. Validate if volatility or macroeconomic news frequency degrades setups on this day.`,
+        description: `${worstDay.dayName} executions have a low win rate of ${wrText}% and -$${Math.abs(worstDay.totalPnl).toFixed(0)} P&L. Validate if volatility or macroeconomic news frequency degrades setups on this day.`,
         severity: "warning",
       });
     }
@@ -115,17 +130,18 @@ export function generateReportRecommendations(params: {
 
   // 3. SETUP MODEL ANALYSIS
   if (setupAnalytics.setups.length > 1) {
-    const activeSetups = setupAnalytics.setups.filter((s) => s.tradeCount >= 2);
+    const activeSetups = setupAnalytics.setups.filter((s) => s.count >= 2);
     if (activeSetups.length > 0) {
       const topSetup = activeSetups[0];
       const bottomSetup = activeSetups[activeSetups.length - 1];
 
       if (topSetup && topSetup.expectancy !== null && topSetup.expectancy > 0.5) {
+        const wrText = topSetup.winRate !== null ? (topSetup.winRate * 100).toFixed(0) : "0";
         recommendations.push({
           id: "setup-top-performer",
           category: "setup",
-          title: `Primary Strategy: "${topSetup.setupModel}"`,
-          description: `"${topSetup.setupModel}" is your top edge, producing +${topSetup.expectancy.toFixed(2)}R expectancy across ${topSetup.tradeCount} trades with ${(topSetup.winRate * 100).toFixed(0)}% win rate.`,
+          title: `Primary Strategy: "${topSetup.setup}"`,
+          description: `"${topSetup.setup}" is your top edge, producing +${topSetup.expectancy.toFixed(2)}R expectancy across ${topSetup.count} trades with ${wrText}% win rate.`,
           severity: "positive",
         });
       }
@@ -134,8 +150,8 @@ export function generateReportRecommendations(params: {
         recommendations.push({
           id: "setup-lagging",
           category: "setup",
-          title: `Refine or Prune Setup: "${bottomSetup.setupModel}"`,
-          description: `"${bottomSetup.setupModel}" generated a negative expectancy of ${bottomSetup.expectancy.toFixed(2)}R across ${bottomSetup.tradeCount} trades. Review screenshots and entry criteria before trading live.`,
+          title: `Refine or Prune Setup: "${bottomSetup.setup}"`,
+          description: `"${bottomSetup.setup}" generated a negative expectancy of ${bottomSetup.expectancy.toFixed(2)}R across ${bottomSetup.count} trades. Review screenshots and entry criteria before trading live.`,
           severity: "warning",
         });
       }
@@ -143,12 +159,12 @@ export function generateReportRecommendations(params: {
   }
 
   // 4. DRAWDOWN & RISK SIZING
-  if (drawdownDetails.maxDrawdownPercent >= 8 || drawdownDetails.longestLosingStreak >= 4) {
+  if (drawdownDetails.maxDrawdownPercent >= 8 || stats.longestLossStreak >= 4) {
     recommendations.push({
       id: "risk-drawdown-resilience",
       category: "risk",
       title: "Enforce Daily Loss Circuit Breakers",
-      description: `Max drawdown reached -${drawdownDetails.maxDrawdownPercent.toFixed(1)}% with a peak consecutive losing streak of ${drawdownDetails.longestLosingStreak} trades. Capping daily risk at 2–3R will protect accumulated gains during choppy market regimes.`,
+      description: `Max drawdown reached -${drawdownDetails.maxDrawdownPercent.toFixed(1)}% with a peak consecutive losing streak of ${stats.longestLossStreak} trades. Capping daily risk at 2–3R will protect accumulated gains during choppy market regimes.`,
       severity: "warning",
     });
   } else if (stats.profitFactor !== null && stats.profitFactor > 1.8 && stats.totalTrades >= 5) {

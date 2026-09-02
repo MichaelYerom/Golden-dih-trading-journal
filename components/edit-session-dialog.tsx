@@ -156,7 +156,7 @@ export function EditSessionDialog({
             </label>
             <Input
               name="name"
-              defaultValue={session.name}
+              defaultValue={session.name || ""}
               placeholder="e.g. NQ NY AM Silver Bullet"
               required
               disabled={isSubmitting}
@@ -171,7 +171,7 @@ export function EditSessionDialog({
               </label>
               <Input
                 name="instrument"
-                defaultValue={session.instrument}
+                defaultValue={session.instrument || ""}
                 placeholder="e.g. NQ, ES, EURUSD"
                 className="font-mono-numbers uppercase"
                 required

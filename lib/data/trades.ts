@@ -1106,8 +1106,8 @@ export function calculateSessionDurationPerformance(trades: TradeEntity[]): Sess
     tradesByDay.set(dayKey, list);
   }
 
-  for (const dayTrades of tradesByDay.values()) {
-    const earliestTime = Math.min(...dayTrades.map((t) => new Date(t.entryAt).getTime()));
+  tradesByDay.forEach((dayTrades) => {
+    const earliestTime = Math.min(...dayTrades.map((t: TradeEntity) => new Date(t.entryAt).getTime()));
 
     for (const trade of dayTrades) {
       const elapsedMinutes = (new Date(trade.entryAt).getTime() - earliestTime) / (1000 * 60);
@@ -1128,7 +1128,7 @@ export function calculateSessionDurationPerformance(trades: TradeEntity[]): Sess
       else if (trade.result === "loss") target.lossCount++;
       else if (trade.result === "breakeven") target.breakevenCount++;
     }
-  }
+  });
 
   for (const b of buckets) {
     if (b.count > 0) {
@@ -1138,8 +1138,8 @@ export function calculateSessionDurationPerformance(trades: TradeEntity[]): Sess
 
       // Avg R
       const bucketTrades: TradeEntity[] = [];
-      for (const dayTrades of tradesByDay.values()) {
-        const earliestTime = Math.min(...dayTrades.map((t) => new Date(t.entryAt).getTime()));
+      tradesByDay.forEach((dayTrades) => {
+        const earliestTime = Math.min(...dayTrades.map((t: TradeEntity) => new Date(t.entryAt).getTime()));
         for (const trade of dayTrades) {
           const elapsed = (new Date(trade.entryAt).getTime() - earliestTime) / (1000 * 60);
           if (
@@ -1152,7 +1152,7 @@ export function calculateSessionDurationPerformance(trades: TradeEntity[]): Sess
             }
           }
         }
-      }
+      });
 
       if (bucketTrades.length > 0) {
         b.avgR =
@@ -1254,7 +1254,7 @@ export function calculateSetupPerformance(trades: TradeEntity[]): SetupAnalytics
 
   const setups: SetupPerformance[] = [];
 
-  for (const [setupName, setupTrades] of setupTradesMap.entries()) {
+  setupTradesMap.forEach((setupTrades, setupName) => {
     const count = setupTrades.length;
     let winCount = 0;
     let lossCount = 0;
@@ -1288,15 +1288,15 @@ export function calculateSetupPerformance(trades: TradeEntity[]): SetupAnalytics
     }
 
     const largestWin =
-      setupTrades.length > 0 ? Math.max(0, ...setupTrades.map((t) => t.grossPnl)) : 0;
+      setupTrades.length > 0 ? Math.max(0, ...setupTrades.map((t: TradeEntity) => t.grossPnl)) : 0;
     const largestLoss =
-      setupTrades.length > 0 ? Math.min(0, ...setupTrades.map((t) => t.grossPnl)) : 0;
+      setupTrades.length > 0 ? Math.min(0, ...setupTrades.map((t: TradeEntity) => t.grossPnl)) : 0;
 
-    const tradesWithR = setupTrades.filter((t) => t.rMultiple !== null && !isNaN(t.rMultiple));
+    const tradesWithR = setupTrades.filter((t: TradeEntity) => t.rMultiple !== null && !isNaN(t.rMultiple));
     const avgR =
       tradesWithR.length > 0
         ? Math.round(
-            (tradesWithR.reduce((acc, t) => acc + (t.rMultiple || 0), 0) / tradesWithR.length) *
+            (tradesWithR.reduce((acc: number, t: TradeEntity) => acc + (t.rMultiple || 0), 0) / tradesWithR.length) *
               100
           ) / 100
         : null;
@@ -1316,7 +1316,7 @@ export function calculateSetupPerformance(trades: TradeEntity[]): SetupAnalytics
     }
 
     const conditions: SetupConditionPerformance[] = [];
-    for (const [condName, condTrades] of conditionTradesMap.entries()) {
+    conditionTradesMap.forEach((condTrades, condName) => {
       const condCount = condTrades.length;
       let cWins = 0;
       let cLosses = 0;
@@ -1334,11 +1334,11 @@ export function calculateSetupPerformance(trades: TradeEntity[]): SetupAnalytics
       const cAvgPnl = condCount > 0 ? Math.round((cPnl / condCount) * 100) / 100 : null;
       cPnl = Math.round(cPnl * 100) / 100;
 
-      const cTradesWithR = condTrades.filter((t) => t.rMultiple !== null && !isNaN(t.rMultiple));
+      const cTradesWithR = condTrades.filter((t: TradeEntity) => t.rMultiple !== null && !isNaN(t.rMultiple));
       const cAvgR =
         cTradesWithR.length > 0
           ? Math.round(
-              (cTradesWithR.reduce((acc, t) => acc + (t.rMultiple || 0), 0) /
+              (cTradesWithR.reduce((acc: number, t: TradeEntity) => acc + (t.rMultiple || 0), 0) /
                 cTradesWithR.length) *
                 100
             ) / 100
@@ -1359,7 +1359,7 @@ export function calculateSetupPerformance(trades: TradeEntity[]): SetupAnalytics
         expectancy: cExpectancy,
         isLowConfidence: condCount < 3,
       });
-    }
+    });
 
     conditions.sort((a, b) => b.count - a.count);
 
@@ -1380,7 +1380,7 @@ export function calculateSetupPerformance(trades: TradeEntity[]): SetupAnalytics
       isLowConfidence,
       conditions,
     });
-  }
+  });
 
   setups.sort((a, b) => {
     if (a.setup === "Unspecified" && b.setup !== "Unspecified") return 1;
@@ -1440,7 +1440,7 @@ export function calculateDailyPnL(trades: TradeEntity[]): DailyPnLRecord[] {
 
   const records: DailyPnLRecord[] = [];
 
-  for (const [dateKey, dayTrades] of map.entries()) {
+  map.forEach((dayTrades, dateKey) => {
     const d = new Date(dayTrades[0].entryAt);
     const count = dayTrades.length;
     let winCount = 0;
@@ -1458,11 +1458,11 @@ export function calculateDailyPnL(trades: TradeEntity[]): DailyPnLRecord[] {
     totalPnl = Math.round(totalPnl * 100) / 100;
     const winRate = count > 0 ? Math.round((winCount / count) * 1000) / 10 : null;
 
-    const tradesWithR = dayTrades.filter((t) => t.rMultiple !== null && !isNaN(t.rMultiple));
+    const tradesWithR = dayTrades.filter((t: TradeEntity) => t.rMultiple !== null && !isNaN(t.rMultiple));
     const avgR =
       tradesWithR.length > 0
         ? Math.round(
-            (tradesWithR.reduce((acc, t) => acc + (t.rMultiple || 0), 0) / tradesWithR.length) *
+            (tradesWithR.reduce((acc: number, t: TradeEntity) => acc + (t.rMultiple || 0), 0) / tradesWithR.length) *
               100
           ) / 100
         : null;
@@ -1484,7 +1484,7 @@ export function calculateDailyPnL(trades: TradeEntity[]): DailyPnLRecord[] {
       isLoss: totalPnl < -0.001,
       isBreakeven: Math.abs(totalPnl) <= 0.001,
     });
-  }
+  });
 
   records.sort((a, b) => a.date.localeCompare(b.date));
   return records;

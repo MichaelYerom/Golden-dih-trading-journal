@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createSession, deleteSession } from "@/lib/data/sessions";
+import { createSession, updateSession, deleteSession } from "@/lib/data/sessions";
 
 export async function createSessionAction(formData: FormData) {
   try {
