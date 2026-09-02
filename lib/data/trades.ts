@@ -397,6 +397,14 @@ export interface DayStreakStats {
   avgDailyPnl: number | null;
 }
 
+export interface WeeklyPnLRecord {
+  weekIndex: number;
+  totalPnl: number;
+  daysTraded: number;
+  isProfit: boolean;
+  isLoss: boolean;
+}
+
 export interface CalendarAnalyticsResult {
   dailyRecords: DailyPnLRecord[];
   dailyPnLMap: Record<string, DailyPnLRecord>;
@@ -1488,6 +1496,65 @@ export function calculateDailyPnL(trades: TradeEntity[]): DailyPnLRecord[] {
 
   records.sort((a, b) => a.date.localeCompare(b.date));
   return records;
+}
+
+export function calculateWeeklyPnL(
+  trades: TradeEntity[],
+  year: number,
+  month: number
+): WeeklyPnLRecord[] {
+  const firstDayOfMonth = new Date(year, month - 1, 1);
+  const totalDaysInMonth = new Date(year, month, 0).getDate();
+  const startingDayOfWeek = firstDayOfMonth.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+
+  const tradesByDay = new Map<string, TradeEntity[]>();
+  for (const t of trades) {
+    if (t.entryAt && !isNaN(new Date(t.entryAt).getTime())) {
+      const d = new Date(t.entryAt);
+      const key = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}-${d.getDate().toString().padStart(2, "0")}`;
+      const list = tradesByDay.get(key) || [];
+      list.push(t);
+      tradesByDay.set(key, list);
+    }
+  }
+
+  const totalCells = Math.ceil((startingDayOfWeek + totalDaysInMonth) / 7) * 7;
+  const numWeeks = totalCells / 7;
+  const weeklyRecords: WeeklyPnLRecord[] = [];
+
+  let currentDayCounter = 1 - startingDayOfWeek;
+
+  for (let w = 0; w < numWeeks; w++) {
+    let weekTotalPnl = 0;
+    let weekDaysTraded = 0;
+
+    for (let d = 0; d < 7; d++) {
+      const dayNum = currentDayCounter;
+      currentDayCounter++;
+
+      if (dayNum >= 1 && dayNum <= totalDaysInMonth) {
+        const dateKey = `${year}-${month.toString().padStart(2, "0")}-${dayNum.toString().padStart(2, "0")}`;
+        const dayTrades = tradesByDay.get(dateKey);
+        if (dayTrades && dayTrades.length > 0) {
+          weekDaysTraded++;
+          for (const t of dayTrades) {
+            weekTotalPnl += t.grossPnl;
+          }
+        }
+      }
+    }
+
+    weekTotalPnl = Math.round(weekTotalPnl * 100) / 100;
+    weeklyRecords.push({
+      weekIndex: w + 1,
+      totalPnl: weekTotalPnl,
+      daysTraded: weekDaysTraded,
+      isProfit: weekTotalPnl > 0.001,
+      isLoss: weekTotalPnl < -0.001,
+    });
+  }
+
+  return weeklyRecords;
 }
 
 export function calculateStreaksByDay(dailyRecords: DailyPnLRecord[]): DayStreakStats {

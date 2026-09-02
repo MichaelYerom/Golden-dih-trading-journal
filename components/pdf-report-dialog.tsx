@@ -239,7 +239,7 @@ export function PdfReportDialog({
             </div>
             <div className="text-sm font-bold font-mono-numbers text-[#22A06B]">
               {compliance.overallComplianceRate !== null
-                ? `${(compliance.overallComplianceRate * 100).toFixed(0)}%`
+                ? `${compliance.overallComplianceRate > 1 ? compliance.overallComplianceRate.toFixed(0) : (compliance.overallComplianceRate * 100).toFixed(0)}%`
                 : "—"}
             </div>
           </div>

@@ -534,6 +534,12 @@ export function SessionDashboardView({
         /* CALENDAR HEATMAP TAB */
         <CalendarHeatmapView
           calendarAnalytics={calendarAnalytics}
+          trades={trades}
+          sessionId={session.id}
+          sessionPeriodStart={session.periodStart}
+          sessionPeriodEnd={session.periodEnd}
+          rules={rules}
+          defaultSymbol={session.instrument}
           onSelectDate={handleSelectDateFromCalendar}
         />
       )}
