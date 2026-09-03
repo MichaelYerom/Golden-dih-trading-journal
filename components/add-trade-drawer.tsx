@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Loader2, ShieldCheck, Check, X, Pencil, UploadCloud, Image as ImageIcon, Trash2 } from "lucide-react";
 import { createTradeAction, updateTradeAction } from "@/lib/actions/trade-actions";
 import { deleteTradeImageAction } from "@/lib/actions/trade-image-actions";
-import { RuleEntity, TradeEntity, TradeImageEntity } from "@/lib/data/trades";
+import { RuleEntity, TradeEntity, TradeImageEntity } from "@/lib/data/trade-analytics";
 
 interface AddTradeDrawerProps {
   sessionId: string;

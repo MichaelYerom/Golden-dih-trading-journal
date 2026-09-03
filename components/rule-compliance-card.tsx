@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { RuleComplianceResult, RuleEntity } from "@/lib/data/trades";
+import { RuleComplianceResult, RuleEntity } from "@/lib/data/trade-analytics";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatPercent } from "@/lib/utils";

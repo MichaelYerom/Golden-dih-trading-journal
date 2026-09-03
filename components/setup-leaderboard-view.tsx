@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   SetupAnalyticsResult,
   SetupPerformance,
-} from "@/lib/data/trades";
+} from "@/lib/data/trade-analytics";
 import { formatCurrency } from "@/lib/utils";
 import {
   Trophy,

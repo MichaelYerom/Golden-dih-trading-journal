@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { RuleEntity } from "@/lib/data/trades";
+import { RuleEntity } from "@/lib/data/trade-analytics";
 import { createRuleAction, deleteRuleAction } from "@/lib/actions/rule-actions";
 import {
   ShieldCheck,

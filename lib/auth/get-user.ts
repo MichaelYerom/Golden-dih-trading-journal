@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server";
-import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 
 export interface AuthUser {
@@ -18,34 +17,37 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     return null;
   }
 
-  // Ensure Prisma User row exists for this Supabase user ID
+  const defaultName =
+    user.user_metadata?.name || user.email.split("@")[0] || "Trader";
+
+  // Ensure Supabase User row exists for this Supabase user ID
   try {
-    const dbUser = await prisma.user.upsert({
-      where: { id: user.id },
-      create: {
+    const { data: dbUser, error } = await supabase
+      .from("User")
+      .upsert({
         id: user.id,
         email: user.email,
-        name: user.user_metadata?.name || user.email.split("@")[0] || "Trader",
-      },
-      update: {
-        email: user.email,
-        name: user.user_metadata?.name || user.email.split("@")[0] || "Trader",
-      },
-    });
+        name: defaultName,
+      })
+      .select()
+      .single();
 
-    return {
-      id: dbUser.id,
-      email: dbUser.email,
-      name: dbUser.name,
-    };
+    if (dbUser && !error) {
+      return {
+        id: dbUser.id,
+        email: dbUser.email,
+        name: dbUser.name,
+      };
+    }
   } catch (err) {
     console.error("Error syncing user with database:", err);
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.user_metadata?.name || user.email.split("@")[0] || "Trader",
-    };
   }
+
+  return {
+    id: user.id,
+    email: user.email,
+    name: defaultName,
+  };
 }
 
 export async function requireUser(): Promise<AuthUser> {

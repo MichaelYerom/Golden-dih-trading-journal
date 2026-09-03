@@ -15,7 +15,7 @@ import {
   RuleComplianceResult,
   TimeAnalyticsResult,
   SetupAnalyticsResult,
-} from "@/lib/data/trades";
+} from "@/lib/data/trade-analytics";
 import { generateReportRecommendations } from "@/lib/data/report-heuristics";
 import { formatCurrency, formatPrice, formatCurrencyNeutral } from "@/lib/utils";
 import {

@@ -4,7 +4,7 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
 import { createTrade, updateTrade, deleteTrade } from "@/lib/data/trades";
 import { getSessionById } from "@/lib/data/sessions";
 
@@ -23,6 +23,8 @@ async function saveTradeImagesFromFormData(tradeId: string, formData: FormData) 
     fs.mkdirSync(uploadDir, { recursive: true });
   }
 
+  const supabase = await createClient();
+
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     if (file && file instanceof File && file.size > 0 && file.size <= 5 * 1024 * 1024) {
@@ -33,12 +35,11 @@ async function saveTradeImagesFromFormData(tradeId: string, formData: FormData) 
       await fs.promises.writeFile(filePath, Buffer.from(bytes));
       const publicUrl = `/uploads/trades/${tradeId}/${uniqueName}`;
       const label = labels[i]?.trim() || null;
-      await prisma.tradeImage.create({
-        data: {
-          tradeId,
-          url: publicUrl,
-          label,
-        },
+      await supabase.from("TradeImage").insert({
+        id: crypto.randomUUID(),
+        tradeId,
+        url: publicUrl,
+        label,
       });
     }
   }

@@ -8,7 +8,7 @@ import {
   RuleEntity,
   TradeFilterCriteria,
   filterTrades,
-} from "@/lib/data/trades";
+} from "@/lib/data/trade-analytics";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, formatPrice } from "@/lib/utils";

@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Settings, Loader2, AlertTriangle } from "lucide-react";
 import { updateSessionAction } from "@/lib/actions/session-actions";
-import { TradeEntity } from "@/lib/data/trades";
+import { TradeEntity } from "@/lib/data/trade-analytics";
 
 interface EditSessionDialogProps {
   session: {

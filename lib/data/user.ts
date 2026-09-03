@@ -1,17 +1,20 @@
 import { getCurrentUser, requireUser } from "@/lib/auth/get-user";
-import { prisma } from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
 
 export async function getDefaultUser() {
   const user = await getCurrentUser();
-  if (user) {
-    return prisma.user.findUniqueOrThrow({
-      where: { id: user.id },
-    });
+  const userId = user ? user.id : (await requireUser()).id;
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("User")
+    .select("*")
+    .eq("id", userId)
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message || "User not found");
   }
 
-  // Fallback to requiring user redirect
-  const required = await requireUser();
-  return prisma.user.findUniqueOrThrow({
-    where: { id: required.id },
-  });
+  return data;
 }

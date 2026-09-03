@@ -5,7 +5,7 @@ import {
   RuleComplianceResult,
   DrawdownResult,
   TradeEntity,
-} from "@/lib/data/trades";
+} from "@/lib/data/trade-analytics";
 
 export interface HeuristicRecommendation {
   id: string;

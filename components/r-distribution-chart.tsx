@@ -11,7 +11,7 @@ import {
   Cell,
   CartesianGrid,
 } from "recharts";
-import { RBucket } from "@/lib/data/trades";
+import { RBucket } from "@/lib/data/trade-analytics";
 import { BarChart3 } from "lucide-react";
 
 interface RDistributionChartProps {

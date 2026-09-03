@@ -1,7 +1,6 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -32,18 +31,12 @@ export async function loginAction(
   }
 
   if (data.user) {
-    // Ensure Prisma User row exists
+    // Ensure User row exists in DB
     try {
-      await prisma.user.upsert({
-        where: { id: data.user.id },
-        create: {
-          id: data.user.id,
-          email: data.user.email!,
-          name: data.user.user_metadata?.name || data.user.email!.split("@")[0] || "Trader",
-        },
-        update: {
-          email: data.user.email!,
-        },
+      await supabase.from("User").upsert({
+        id: data.user.id,
+        email: data.user.email!,
+        name: data.user.user_metadata?.name || data.user.email!.split("@")[0] || "Trader",
       });
     } catch (dbErr) {
       console.error("Error syncing db user on login:", dbErr);
@@ -91,19 +84,12 @@ export async function signupAction(
   }
 
   if (data.user) {
-    // Provision Prisma User row
+    // Provision User row in DB
     try {
-      await prisma.user.upsert({
-        where: { id: data.user.id },
-        create: {
-          id: data.user.id,
-          email: data.user.email!,
-          name: name.trim(),
-        },
-        update: {
-          email: data.user.email!,
-          name: name.trim(),
-        },
+      await supabase.from("User").upsert({
+        id: data.user.id,
+        email: data.user.email!,
+        name: name.trim(),
       });
     } catch (dbErr) {
       console.error("Error syncing db user on signup:", dbErr);

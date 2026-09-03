@@ -4,7 +4,7 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth/get-user";
 
 export interface SessionExportSnapshot {
@@ -67,32 +67,47 @@ export async function exportSessionSnapshotAction(sessionId: string): Promise<{
       return { error: "Session ID is required for export." };
     }
 
-    const session = await prisma.session.findFirst({
-      where: { id: sessionId, userId: user.id },
-      include: {
-        rules: {
-          orderBy: { createdAt: "asc" },
-        },
-        trades: {
-          include: {
-            ruleChecks: true,
-            images: {
-              orderBy: { createdAt: "asc" },
-            },
-          },
-          orderBy: [{ entryAt: "asc" }, { createdAt: "asc" }],
-        },
-      },
-    });
+    const supabase = await createClient();
 
-    if (!session) {
+    const { data: session, error } = await supabase
+      .from("Session")
+      .select(`
+        *,
+        rules:Rule(*),
+        trades:Trade(
+          *,
+          ruleChecks:TradeRuleCheck(*),
+          images:TradeImage(*)
+        )
+      `)
+      .eq("id", sessionId)
+      .eq("userId", user.id)
+      .maybeSingle();
+
+    if (error || !session) {
       return { error: "Session not found or unauthorized." };
     }
 
+    const sessionRules = (Array.isArray(session.rules) ? session.rules : []).sort(
+      (a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+
+    const sessionTrades = (Array.isArray(session.trades) ? session.trades : []).sort(
+      (a: any, b: any) => {
+        const entryDiff = new Date(a.entryAt).getTime() - new Date(b.entryAt).getTime();
+        if (entryDiff !== 0) return entryDiff;
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }
+    );
+
     const exportedTrades = await Promise.all(
-      session.trades.map(async (trade) => {
+      sessionTrades.map(async (trade: any) => {
+        const tradeImages = (Array.isArray(trade.images) ? trade.images : []).sort(
+          (a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+
         const exportedImages = await Promise.all(
-          trade.images.map(async (img) => {
+          tradeImages.map(async (img: any) => {
             let base64Data = "";
             let mimeType = "image/png";
             let filename = `screenshot-${img.id}.png`;
@@ -121,30 +136,32 @@ export async function exportSessionSnapshotAction(sessionId: string): Promise<{
           })
         );
 
+        const tradeChecks = Array.isArray(trade.ruleChecks) ? trade.ruleChecks : [];
+
         return {
           id: trade.id,
           symbol: trade.symbol,
           direction: trade.direction,
-          entryAt: trade.entryAt.toISOString(),
-          exitAt: trade.exitAt.toISOString(),
-          entryPrice: trade.entryPrice,
-          exitPrice: trade.exitPrice,
-          stopLoss: trade.stopLoss,
-          rMultiple: trade.rMultiple,
-          grossPnl: trade.grossPnl,
+          entryAt: new Date(trade.entryAt).toISOString(),
+          exitAt: new Date(trade.exitAt).toISOString(),
+          entryPrice: Number(trade.entryPrice),
+          exitPrice: Number(trade.exitPrice),
+          stopLoss: trade.stopLoss !== null && trade.stopLoss !== undefined ? Number(trade.stopLoss) : null,
+          rMultiple: trade.rMultiple !== null && trade.rMultiple !== undefined ? Number(trade.rMultiple) : null,
+          grossPnl: Number(trade.grossPnl),
           result: trade.result,
           notes: trade.notes,
           htfBias: trade.htfBias,
           newsToday: trade.newsToday,
-          riskPercent: trade.riskPercent,
+          riskPercent: trade.riskPercent !== null && trade.riskPercent !== undefined ? Number(trade.riskPercent) : null,
           drawDirection: trade.drawDirection,
           setupModel: trade.setupModel,
           emotionalState: trade.emotionalState,
           rulesFollowed: trade.rulesFollowed,
           rr: trade.rr,
-          ruleChecks: trade.ruleChecks.map((rc) => ({
+          ruleChecks: tradeChecks.map((rc: any) => ({
             ruleId: rc.ruleId,
-            followed: rc.followed,
+            followed: Boolean(rc.followed),
           })),
           images: exportedImages.filter((img) => Boolean(img.base64Data)),
         };
@@ -157,12 +174,12 @@ export async function exportSessionSnapshotAction(sessionId: string): Promise<{
       session: {
         name: session.name,
         instrument: session.instrument,
-        startingBalance: session.startingBalance,
-        periodStart: session.periodStart.toISOString(),
-        periodEnd: session.periodEnd.toISOString(),
+        startingBalance: Number(session.startingBalance),
+        periodStart: new Date(session.periodStart).toISOString(),
+        periodEnd: new Date(session.periodEnd).toISOString(),
         status: session.status,
       },
-      rules: session.rules.map((r) => ({
+      rules: sessionRules.map((r: any) => ({
         id: r.id,
         text: r.text,
       })),
@@ -213,32 +230,47 @@ export async function importSessionSnapshotAction(snapshotJson: string): Promise
       return { error: "Invalid date format in session snapshot." };
     }
 
-    // Create new session in Prisma
     const user = await requireUser();
-    const newSession = await prisma.session.create({
-      data: {
+    const supabase = await createClient();
+
+    const newSessionId = crypto.randomUUID();
+    const { data: newSession, error: sErr } = await supabase
+      .from("Session")
+      .insert({
+        id: newSessionId,
         userId: user.id,
         name: data.session.name ? `${data.session.name} (Imported)` : `${data.session.instrument} (Imported)`,
         instrument: data.session.instrument.toUpperCase().trim(),
         startingBalance: data.session.startingBalance,
-        periodStart: pStart,
-        periodEnd: pEnd,
+        periodStart: pStart.toISOString(),
+        periodEnd: pEnd.toISOString(),
         status: data.session.status || "active",
-      },
-    });
+        updatedAt: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (sErr || !newSession) {
+      throw new Error(sErr?.message || "Failed to create session in database.");
+    }
 
     // Map old rule IDs to newly created rules
     const ruleIdMap = new Map<string, string>();
     if (Array.isArray(data.rules) && data.rules.length > 0) {
       for (const rule of data.rules) {
         if (rule.text?.trim()) {
-          const createdRule = await prisma.rule.create({
-            data: {
+          const newRuleId = crypto.randomUUID();
+          const { data: createdRule, error: rErr } = await supabase
+            .from("Rule")
+            .insert({
+              id: newRuleId,
               sessionId: newSession.id,
               text: rule.text.trim(),
-            },
-          });
-          if (rule.id) {
+            })
+            .select()
+            .single();
+
+          if (!rErr && createdRule && rule.id) {
             ruleIdMap.set(rule.id, createdRule.id);
           }
         }
@@ -250,14 +282,17 @@ export async function importSessionSnapshotAction(snapshotJson: string): Promise
       for (const t of data.trades) {
         const eAt = new Date(t.entryAt);
         const xAt = new Date(t.exitAt);
+        const newTradeId = crypto.randomUUID();
 
-        const createdTrade = await prisma.trade.create({
-          data: {
+        const { data: createdTrade, error: tErr } = await supabase
+          .from("Trade")
+          .insert({
+            id: newTradeId,
             sessionId: newSession.id,
             symbol: (t.symbol || data.session.instrument).toUpperCase().trim(),
             direction: t.direction?.toLowerCase() === "short" ? "short" : "long",
-            entryAt: !isNaN(eAt.getTime()) ? eAt : pStart,
-            exitAt: !isNaN(xAt.getTime()) ? xAt : pStart,
+            entryAt: !isNaN(eAt.getTime()) ? eAt.toISOString() : pStart.toISOString(),
+            exitAt: !isNaN(xAt.getTime()) ? xAt.toISOString() : pStart.toISOString(),
             entryPrice: typeof t.entryPrice === "number" ? t.entryPrice : 0,
             exitPrice: typeof t.exitPrice === "number" ? t.exitPrice : 0,
             stopLoss: typeof t.stopLoss === "number" ? t.stopLoss : null,
@@ -273,22 +308,31 @@ export async function importSessionSnapshotAction(snapshotJson: string): Promise
             emotionalState: t.emotionalState || null,
             rulesFollowed: typeof t.rulesFollowed === "boolean" ? t.rulesFollowed : null,
             rr: t.rr || null,
-          },
-        });
+          })
+          .select()
+          .single();
+
+        if (tErr || !createdTrade) {
+          console.error("Failed to insert trade during import:", tErr);
+          continue;
+        }
 
         // Recreate TradeRuleChecks
         if (Array.isArray(t.ruleChecks) && t.ruleChecks.length > 0) {
+          const checksToInsert = [];
           for (const rc of t.ruleChecks) {
             const mappedRuleId = ruleIdMap.get(rc.ruleId);
             if (mappedRuleId) {
-              await prisma.tradeRuleCheck.create({
-                data: {
-                  tradeId: createdTrade.id,
-                  ruleId: mappedRuleId,
-                  followed: Boolean(rc.followed),
-                },
+              checksToInsert.push({
+                id: crypto.randomUUID(),
+                tradeId: createdTrade.id,
+                ruleId: mappedRuleId,
+                followed: Boolean(rc.followed),
               });
             }
+          }
+          if (checksToInsert.length > 0) {
+            await supabase.from("TradeRuleCheck").insert(checksToInsert);
           }
         }
 
@@ -309,12 +353,11 @@ export async function importSessionSnapshotAction(snapshotJson: string): Promise
                 await fs.promises.writeFile(filePath, buffer);
 
                 const publicUrl = `/uploads/trades/${createdTrade.id}/${uniqueName}`;
-                await prisma.tradeImage.create({
-                  data: {
-                    tradeId: createdTrade.id,
-                    url: publicUrl,
-                    label: img.label?.trim() || null,
-                  },
+                await supabase.from("TradeImage").insert({
+                  id: crypto.randomUUID(),
+                  tradeId: createdTrade.id,
+                  url: publicUrl,
+                  label: img.label?.trim() || null,
                 });
               } catch (imgErr) {
                 console.error("Failed to restore image on import:", imgErr);

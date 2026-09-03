@@ -19,7 +19,7 @@ import {
   RuleComplianceResult,
   TimeAnalyticsResult,
   SetupAnalyticsResult,
-} from "@/lib/data/trades";
+} from "@/lib/data/trade-analytics";
 import {
   Settings,
   Pencil,

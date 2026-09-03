@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatPercent } from "@/lib/utils";
-import { SessionWithQuickStats } from "@/lib/data/sessions";
+import type { SessionWithQuickStats } from "@/lib/data/sessions";
 import { ArrowUpRight, Calendar, Layers } from "lucide-react";
 
 interface SessionCardProps {

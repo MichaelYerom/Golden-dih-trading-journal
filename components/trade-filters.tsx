@@ -4,7 +4,7 @@ import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { TradeFilterCriteria } from "@/lib/data/trades";
+import { TradeFilterCriteria } from "@/lib/data/trade-analytics";
 import {
   Search,
   SlidersHorizontal,

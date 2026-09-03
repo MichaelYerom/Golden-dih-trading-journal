@@ -22,7 +22,7 @@ import {
   TimeAnalyticsResult,
   SetupAnalyticsResult,
   CalendarAnalyticsResult,
-} from "@/lib/data/trades";
+} from "@/lib/data/trade-analytics";
 import { formatCurrency, formatPercent, formatCurrencyNeutral } from "@/lib/utils";
 import {
   LayoutDashboard,

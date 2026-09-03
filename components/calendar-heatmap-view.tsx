@@ -13,7 +13,7 @@ import {
   RuleEntity,
   calculateWeeklyPnL,
   WeeklyPnLRecord,
-} from "@/lib/data/trades";
+} from "@/lib/data/trade-analytics";
 import { formatCurrency, formatPrice } from "@/lib/utils";
 import {
   ChevronLeft,

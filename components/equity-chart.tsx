@@ -13,7 +13,7 @@ import {
   ReferenceDot,
   CartesianGrid,
 } from "recharts";
-import { EquityPoint, DrawdownResult } from "@/lib/data/trades";
+import { EquityPoint, DrawdownResult } from "@/lib/data/trade-analytics";
 import { formatCurrencyNeutral, formatCurrency } from "@/lib/utils";
 import { TrendingUp } from "lucide-react";
 

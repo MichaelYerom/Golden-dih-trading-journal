@@ -4,7 +4,7 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth/get-user";
 
 const ALLOWED_MIME_TYPES = new Set([
@@ -54,16 +54,16 @@ export async function uploadTradeImageAction(formData: FormData): Promise<{
       };
     }
 
-    // Verify trade exists and belongs to current user's session
-    const trade = await prisma.trade.findFirst({
-      where: {
-        id: tradeId,
-        session: { userId: user.id },
-      },
-      select: { id: true, sessionId: true },
-    });
+    const supabase = await createClient();
 
-    if (!trade) {
+    // Verify trade exists and belongs to current user's session
+    const { data: trade, error: tradeErr } = await supabase
+      .from("Trade")
+      .select("id, sessionId")
+      .eq("id", tradeId)
+      .maybeSingle();
+
+    if (tradeErr || !trade) {
       return { error: "Trade not found or unauthorized." };
     }
 
@@ -82,14 +82,22 @@ export async function uploadTradeImageAction(formData: FormData): Promise<{
     await fs.promises.writeFile(filePath, buffer);
 
     const publicUrl = `/uploads/trades/${tradeId}/${uniqueName}`;
+    const imageId = crypto.randomUUID();
 
-    const created = await prisma.tradeImage.create({
-      data: {
+    const { data: created, error: imgErr } = await supabase
+      .from("TradeImage")
+      .insert({
+        id: imageId,
         tradeId,
         url: publicUrl,
         label: label?.trim() || null,
-      },
-    });
+      })
+      .select()
+      .single();
+
+    if (imgErr || !created) {
+      return { error: imgErr?.message || "Failed to save image record." };
+    }
 
     const targetSessionId = sessionId || trade.sessionId;
     if (targetSessionId) {
@@ -105,7 +113,7 @@ export async function uploadTradeImageAction(formData: FormData): Promise<{
         tradeId: created.tradeId,
         url: created.url,
         label: created.label,
-        createdAt: created.createdAt.toISOString(),
+        createdAt: new Date(created.createdAt).toISOString(),
       },
     };
   } catch (error) {
@@ -124,26 +132,27 @@ export async function deleteTradeImageAction(
       return { error: "Image ID is required." };
     }
 
-    const image = await prisma.tradeImage.findFirst({
-      where: {
-        id: imageId,
-        trade: { session: { userId: user.id } },
-      },
-      include: {
-        trade: {
-          select: { sessionId: true },
-        },
-      },
-    });
+    const supabase = await createClient();
 
-    if (!image) {
+    const { data: image, error: getErr } = await supabase
+      .from("TradeImage")
+      .select("id, url, tradeId, trade:Trade(sessionId)")
+      .eq("id", imageId)
+      .maybeSingle();
+
+    if (getErr || !image) {
       return { error: "Image not found or unauthorized." };
     }
 
     // Delete DB record
-    await prisma.tradeImage.delete({
-      where: { id: imageId },
-    });
+    const { error: delErr } = await supabase
+      .from("TradeImage")
+      .delete()
+      .eq("id", imageId);
+
+    if (delErr) {
+      return { error: delErr.message };
+    }
 
     // Remove file from disk
     try {
@@ -155,7 +164,7 @@ export async function deleteTradeImageAction(
       console.error("Failed to remove image file from disk:", fsErr);
     }
 
-    const targetSessionId = sessionId || image.trade?.sessionId;
+    const targetSessionId = sessionId || (image.trade as any)?.sessionId;
     if (targetSessionId) {
       try {
         revalidatePath(`/sessions/${targetSessionId}`);
