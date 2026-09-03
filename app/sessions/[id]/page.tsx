@@ -3,6 +3,8 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { getSessionById } from "@/lib/data/sessions";
 import { getSessionTradesAndStats } from "@/lib/data/trades";
+import { getStrategies } from "@/lib/data/strategies";
+import { getConfluences } from "@/lib/data/confluences";
 import { Badge } from "@/components/ui/badge";
 import { AddTradeDrawer } from "@/components/add-trade-drawer";
 import { SessionSettingsMenu } from "@/components/session-settings-menu";
@@ -26,7 +28,22 @@ export default async function SessionPage({ params }: SessionPageProps) {
     notFound();
   }
 
-  // Fetch all trades, rules, compliance scoring, time analytics, setup analytics, calendar analytics, and compute all session stats + equity curve in a single query
+  // Fetch all trades, rules, strategies, confluences, compliance scoring, time analytics, setup analytics, calendar analytics, and compute all session stats + equity curve
+  const [
+    tradesAndStats,
+    strategies,
+    confluences,
+  ] = await Promise.all([
+    getSessionTradesAndStats(
+      session.id,
+      session.startingBalance,
+      session.periodStart,
+      session.periodEnd
+    ),
+    getStrategies(),
+    getConfluences(),
+  ]);
+
   const {
     trades,
     stats,
@@ -38,12 +55,7 @@ export default async function SessionPage({ params }: SessionPageProps) {
     timeAnalytics,
     setupAnalytics,
     calendarAnalytics,
-  } = await getSessionTradesAndStats(
-    session.id,
-    session.startingBalance,
-    session.periodStart,
-    session.periodEnd
-  );
+  } = tradesAndStats;
 
   const formattedPeriod = `${format(
     new Date(session.periodStart),
@@ -129,6 +141,10 @@ export default async function SessionPage({ params }: SessionPageProps) {
             sessionPeriodStart={session.periodStart}
             sessionPeriodEnd={session.periodEnd}
             sessionRules={rules}
+            strategies={strategies}
+            confluences={confluences}
+            sessionStartingBalance={session.startingBalance}
+            sessionCurrentBalance={stats.currentBalance}
           />
         </div>
       </div>
@@ -152,7 +168,10 @@ export default async function SessionPage({ params }: SessionPageProps) {
         timeAnalytics={timeAnalytics}
         setupAnalytics={setupAnalytics}
         calendarAnalytics={calendarAnalytics}
+        strategies={strategies}
+        confluences={confluences}
       />
     </div>
   );
 }
+

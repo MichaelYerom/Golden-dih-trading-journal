@@ -29,6 +29,8 @@ import {
   Check,
   X,
 } from "lucide-react";
+import { StrategyEntity } from "@/lib/data/strategies";
+import { ConfluenceEntity } from "@/lib/data/confluences";
 
 interface CalendarHeatmapViewProps {
   calendarAnalytics: CalendarAnalyticsResult;
@@ -37,6 +39,8 @@ interface CalendarHeatmapViewProps {
   sessionPeriodStart?: Date;
   sessionPeriodEnd?: Date;
   rules?: RuleEntity[];
+  strategies?: StrategyEntity[];
+  confluences?: ConfluenceEntity[];
   defaultSymbol?: string;
   onSelectDate?: (dateString: string) => void;
 }
@@ -67,6 +71,8 @@ export function CalendarHeatmapView({
   sessionPeriodStart,
   sessionPeriodEnd,
   rules = [],
+  strategies = [],
+  confluences = [],
   defaultSymbol,
   onSelectDate,
 }: CalendarHeatmapViewProps) {
@@ -554,19 +560,35 @@ export function CalendarHeatmapView({
                         </td>
 
                         <td className="px-3 py-2">
-                          <span
-                            className={`font-semibold text-[10px] px-1.5 py-0.5 rounded ${
-                              t.direction === "long"
-                                ? "bg-[#22A06B]/15 text-[#22A06B]"
-                                : "bg-[#DB5461]/15 text-[#DB5461]"
-                            }`}
-                          >
-                            {t.direction.toUpperCase()}
-                          </span>
+                          {t.outcomeType === "missed_entry" ? (
+                            <span className="font-semibold text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400">
+                              MISSED
+                            </span>
+                          ) : t.outcomeType === "no_trade" ? (
+                            <span className="font-semibold text-[10px] px-1.5 py-0.5 rounded bg-slate-500/15 text-slate-400">
+                              NO TRADE
+                            </span>
+                          ) : t.direction === "long" ? (
+                            <span className="font-semibold text-[10px] px-1.5 py-0.5 rounded bg-[#22A06B]/15 text-[#22A06B]">
+                              LONG
+                            </span>
+                          ) : t.direction === "short" ? (
+                            <span className="font-semibold text-[10px] px-1.5 py-0.5 rounded bg-[#DB5461]/15 text-[#DB5461]">
+                              SHORT
+                            </span>
+                          ) : (
+                            <span className="font-semibold text-[10px] px-1.5 py-0.5 rounded bg-primary/15 text-primary">
+                              TRADE
+                            </span>
+                          )}
                         </td>
 
                         <td className="px-3 py-2 text-right font-mono-numbers text-muted-foreground whitespace-nowrap">
-                          {formatPrice(t.entryPrice)} &rarr; {formatPrice(t.exitPrice)}
+                          {t.entryPrice !== null && t.exitPrice !== null
+                            ? `${formatPrice(t.entryPrice)} \u2192 ${formatPrice(t.exitPrice)}`
+                            : t.riskAmount !== null
+                            ? formatCurrency(t.riskAmount)
+                            : "—"}
                         </td>
 
                         <td
@@ -651,6 +673,8 @@ export function CalendarHeatmapView({
           sessionPeriodStart={sessionPeriodStart}
           sessionPeriodEnd={sessionPeriodEnd}
           sessionRules={rules}
+          strategies={strategies}
+          confluences={confluences}
           tradeToEdit={editingTrade}
           open={Boolean(editingTrade)}
           onOpenChange={(open) => {

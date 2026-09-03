@@ -45,20 +45,28 @@ CREATE TABLE IF NOT EXISTS public."Trade" (
     id TEXT PRIMARY KEY,
     "sessionId" TEXT NOT NULL REFERENCES public."Session"(id) ON DELETE CASCADE,
     symbol TEXT NOT NULL,
-    direction TEXT NOT NULL,
+    direction TEXT,
     "entryAt" TIMESTAMP(3) NOT NULL,
     "exitAt" TIMESTAMP(3) NOT NULL,
-    "entryPrice" DOUBLE PRECISION NOT NULL,
-    "exitPrice" DOUBLE PRECISION NOT NULL,
+    "entryPrice" DOUBLE PRECISION,
+    "exitPrice" DOUBLE PRECISION,
     "stopLoss" DOUBLE PRECISION,
     "rMultiple" DOUBLE PRECISION,
-    "grossPnl" DOUBLE PRECISION NOT NULL,
-    result TEXT NOT NULL,
+    "grossPnl" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    result TEXT,
     notes TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "htfBias" TEXT,
     "newsToday" TEXT,
+    "riskAmount" DOUBLE PRECISION,
     "riskPercent" DOUBLE PRECISION,
+    "rrAchieved" DOUBLE PRECISION,
+    "potentialRR" DOUBLE PRECISION,
+    "lossR" DOUBLE PRECISION DEFAULT -1,
+    "beforeTradeNotes" TEXT,
+    "reasonNotes" TEXT,
+    "outcomeType" TEXT NOT NULL DEFAULT 'trade',
+    "strategyId" TEXT REFERENCES public."Strategy"(id) ON DELETE SET NULL,
     "drawDirection" TEXT,
     "setupModel" TEXT,
     "emotionalState" TEXT,
@@ -70,6 +78,8 @@ CREATE TABLE IF NOT EXISTS public."Trade" (
 );
 
 CREATE INDEX IF NOT EXISTS "Trade_sessionId_idx" ON public."Trade"("sessionId");
+CREATE INDEX IF NOT EXISTS "Trade_strategyId_idx" ON public."Trade"("strategyId");
+CREATE INDEX IF NOT EXISTS "Trade_outcomeType_idx" ON public."Trade"("outcomeType");
 CREATE INDEX IF NOT EXISTS "Trade_htfBiasTagId_idx" ON public."Trade"("htfBiasTagId");
 CREATE INDEX IF NOT EXISTS "Trade_emotionalStateTagId_idx" ON public."Trade"("emotionalStateTagId");
 CREATE INDEX IF NOT EXISTS "Trade_drawDirectionTagId_idx" ON public."Trade"("drawDirectionTagId");
@@ -112,10 +122,23 @@ CREATE TABLE IF NOT EXISTS public."TradeImage" (
     "tradeId" TEXT NOT NULL REFERENCES public."Trade"(id) ON DELETE CASCADE,
     url TEXT NOT NULL,
     label TEXT,
+    role TEXT NOT NULL DEFAULT 'outcome',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS "TradeImage_tradeId_idx" ON public."TradeImage"("tradeId");
+
+-- 9.1. TradeConfluence Join Table
+CREATE TABLE IF NOT EXISTS public."TradeConfluence" (
+    id TEXT PRIMARY KEY,
+    "tradeId" TEXT NOT NULL REFERENCES public."Trade"(id) ON DELETE CASCADE,
+    "confluenceId" TEXT NOT NULL REFERENCES public."Confluence"(id) ON DELETE CASCADE,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "TradeConfluence_tradeId_confluenceId_key" UNIQUE ("tradeId", "confluenceId")
+);
+
+CREATE INDEX IF NOT EXISTS "TradeConfluence_tradeId_idx" ON public."TradeConfluence"("tradeId");
+CREATE INDEX IF NOT EXISTS "TradeConfluence_confluenceId_idx" ON public."TradeConfluence"("confluenceId");
 
 -- =========================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
@@ -246,6 +269,25 @@ WITH CHECK (
         SELECT 1 FROM public."Trade" t
         JOIN public."Session" s ON s.id = t."sessionId"
         WHERE t.id = "_TradeSetupTags"."B" AND s."userId" = auth.uid()::text
+    )
+);
+
+-- TradeConfluence Policies
+CREATE POLICY "Users can view and manage confluence associations for their own trades"
+ON public."TradeConfluence"
+FOR ALL
+USING (
+    EXISTS (
+        SELECT 1 FROM public."Trade" t
+        JOIN public."Session" s ON s.id = t."sessionId"
+        WHERE t.id = "TradeConfluence"."tradeId" AND s."userId" = auth.uid()::text
+    )
+)
+WITH CHECK (
+    EXISTS (
+        SELECT 1 FROM public."Trade" t
+        JOIN public."Session" s ON s.id = t."sessionId"
+        WHERE t.id = "TradeConfluence"."tradeId" AND s."userId" = auth.uid()::text
     )
 );
 

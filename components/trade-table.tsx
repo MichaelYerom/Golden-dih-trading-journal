@@ -9,6 +9,8 @@ import {
   TradeFilterCriteria,
   filterTrades,
 } from "@/lib/data/trade-analytics";
+import { StrategyEntity } from "@/lib/data/strategies";
+import { ConfluenceEntity } from "@/lib/data/confluences";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, formatPrice } from "@/lib/utils";
@@ -24,11 +26,15 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
-  FileText,
   FilterX,
   Camera,
   Image as ImageIcon,
   Plus,
+  BookOpen,
+  Layers,
+  AlertCircle,
+  MinusCircle,
+  TrendingUp,
 } from "lucide-react";
 
 interface TradeTableProps {
@@ -37,6 +43,10 @@ interface TradeTableProps {
   sessionPeriodStart?: Date | string;
   sessionPeriodEnd?: Date | string;
   sessionRules?: RuleEntity[];
+  strategies?: StrategyEntity[];
+  confluences?: ConfluenceEntity[];
+  sessionStartingBalance?: number;
+  sessionCurrentBalance?: number;
   initialSetupFilter?: string | null;
 }
 
@@ -46,6 +56,10 @@ export function TradeTable({
   sessionPeriodStart,
   sessionPeriodEnd,
   sessionRules = [],
+  strategies = [],
+  confluences = [],
+  sessionStartingBalance = 10000,
+  sessionCurrentBalance = 10000,
   initialSetupFilter = null,
 }: TradeTableProps) {
   const router = useRouter();
@@ -68,11 +82,11 @@ export function TradeTable({
       trade.images.map((img) => ({
         id: img.id,
         url: img.url,
-        label: img.label,
+        label: img.label || (img.role === "before_trade" ? "Pre-Trade Setup" : "Outcome / Exit"),
       }))
     );
     setLightboxIndex(index);
-    setLightboxTitle(`${trade.symbol} (${trade.direction.toUpperCase()})`);
+    setLightboxTitle(`${trade.symbol} (${trade.outcomeType === "trade" ? trade.result?.toUpperCase() || "TRADE" : trade.outcomeType.toUpperCase()})`);
     setLightboxOpen(true);
   };
 
@@ -148,23 +162,24 @@ export function TradeTable({
       if (newFilters.maxR !== undefined && newFilters.maxR !== null)
         params.set("maxR", newFilters.maxR.toString());
       if (newFilters.dateRange?.start) {
-        const dStr =
+        const s =
           typeof newFilters.dateRange.start === "string"
-            ? newFilters.dateRange.start.slice(0, 10)
+            ? newFilters.dateRange.start
             : newFilters.dateRange.start.toISOString().slice(0, 10);
-        params.set("start", dStr);
+        params.set("start", s);
       }
       if (newFilters.dateRange?.end) {
-        const dStr =
+        const e =
           typeof newFilters.dateRange.end === "string"
-            ? newFilters.dateRange.end.slice(0, 10)
+            ? newFilters.dateRange.end
             : newFilters.dateRange.end.toISOString().slice(0, 10);
-        params.set("end", dStr);
+        params.set("end", e);
       }
 
       const queryString = params.toString();
-      const targetUrl = queryString ? `${pathname}?${queryString}` : pathname;
-      router.replace(targetUrl, { scroll: false });
+      router.replace(queryString ? `${pathname}?${queryString}` : pathname, {
+        scroll: false,
+      });
     },
     [pathname, router]
   );
@@ -180,26 +195,26 @@ export function TradeTable({
     updateUrlParams(emptyFilters);
   };
 
-  // Derive distinct filter values dynamically from trades
+  // Distinct setups, symbols, emotional states
   const distinctSetups = React.useMemo(() => {
     const set = new Set<string>();
     trades.forEach((t) => {
-      if (t.setupModel && t.setupModel.trim()) {
-        t.setupModel.split(",").forEach((s) => {
+      const name = t.strategy?.name || t.setupModel;
+      if (name) {
+        name.split(",").forEach((s) => {
           const trimmed = s.trim();
           if (trimmed) set.add(trimmed);
         });
       }
     });
+    strategies.forEach((s) => set.add(s.name));
     return Array.from(set).sort();
-  }, [trades]);
+  }, [trades, strategies]);
 
   const distinctSymbols = React.useMemo(() => {
     const set = new Set<string>();
     trades.forEach((t) => {
-      if (t.symbol && t.symbol.trim()) {
-        set.add(t.symbol.toUpperCase().trim());
-      }
+      if (t.symbol) set.add(t.symbol.toUpperCase().trim());
     });
     return Array.from(set).sort();
   }, [trades]);
@@ -207,7 +222,7 @@ export function TradeTable({
   const distinctEmotionalStates = React.useMemo(() => {
     const set = new Set<string>();
     trades.forEach((t) => {
-      if (t.emotionalState && t.emotionalState.trim()) {
+      if (t.emotionalState) {
         t.emotionalState.split(",").forEach((s) => {
           const trimmed = s.trim();
           if (trimmed) set.add(trimmed);
@@ -217,38 +232,34 @@ export function TradeTable({
     return Array.from(set).sort();
   }, [trades]);
 
-  // Apply filters
   const filteredTrades = React.useMemo(() => {
     return filterTrades(trades, filters);
   }, [trades, filters]);
 
   const handleDelete = async (tradeId: string) => {
-    if (!confirm("Delete this trade entry?")) return;
+    if (!confirm("Are you sure you want to delete this trade journal entry?")) return;
     setDeletingId(tradeId);
-    await deleteTradeAction(tradeId, sessionId);
-    setDeletingId(null);
+    try {
+      await deleteTradeAction(tradeId, sessionId);
+    } catch (err) {
+      console.error("Failed to delete trade:", err);
+    } finally {
+      setDeletingId(null);
+    }
   };
-
-  if (!trades || trades.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 px-4 text-center rounded-lg border border-border bg-card">
-        <FileText className="h-5 w-5 text-muted-foreground mb-2" />
-        <h3 className="text-xs font-medium text-foreground">No trades recorded yet</h3>
-        <p className="text-[11px] text-muted-foreground mt-0.5 max-w-xs">
-          Click &ldquo;Add Trade&rdquo; to log your first backtest execution.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <>
-      {/* Controlled Edit Drawer */}
+      {/* Edit Trade Drawer */}
       <AddTradeDrawer
         sessionId={sessionId}
         sessionPeriodStart={sessionPeriodStart}
         sessionPeriodEnd={sessionPeriodEnd}
         sessionRules={sessionRules}
+        strategies={strategies}
+        confluences={confluences}
+        sessionStartingBalance={sessionStartingBalance}
+        sessionCurrentBalance={sessionCurrentBalance}
         tradeToEdit={editingTrade}
         open={Boolean(editingTrade)}
         onOpenChange={(open) => {
@@ -307,34 +318,36 @@ export function TradeTable({
                     <th className="px-3.5 py-2.5">#</th>
                     <th className="px-3.5 py-2.5">Date / Time</th>
                     <th className="px-3.5 py-2.5">Symbol</th>
-                    <th className="px-3.5 py-2.5">Direction</th>
-                    <th className="px-3.5 py-2.5 text-right">Entry</th>
-                    <th className="px-3.5 py-2.5 text-right">Exit</th>
+                    <th className="px-3.5 py-2.5">Mode / Direction</th>
+                    <th className="px-3.5 py-2.5 text-right">Risk ($)</th>
                     <th className="px-3.5 py-2.5 text-right">Gross P&L</th>
                     <th className="px-3.5 py-2.5 text-right">R-Mult</th>
                     <th className="px-3.5 py-2.5 text-center">Result</th>
-                    <th className="px-3.5 py-2.5">Setup / Model</th>
+                    <th className="px-3.5 py-2.5">Playbook Strategy</th>
                     <th className="px-3.5 py-2.5 text-center">Rules</th>
                     <th className="px-3.5 py-2.5 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {filteredTrades.map((trade, idx) => {
-                    const isProfit = trade.grossPnl > 0;
-                    const isLoss = trade.grossPnl < 0;
+                    const isTrade = trade.outcomeType === "trade" || !trade.outcomeType;
+                    const isMissed = trade.outcomeType === "missed_entry";
+                    const isNoTrade = trade.outcomeType === "no_trade";
+                    const isProfit = isTrade && trade.grossPnl > 0;
+                    const isLoss = isTrade && trade.grossPnl < 0;
                     const isExpanded = expandedId === trade.id;
+
                     const hasExtraDetails =
-                      trade.stopLoss !== null ||
-                      trade.rMultiple !== null ||
-                      trade.htfBias ||
-                      trade.newsToday ||
-                      trade.riskPercent !== null ||
-                      trade.drawDirection ||
-                      trade.emotionalState ||
-                      trade.rr ||
+                      trade.beforeTradeNotes ||
+                      trade.reasonNotes ||
                       trade.notes ||
+                      (trade.confluences && trade.confluences.length > 0) ||
+                      trade.riskPercent !== null ||
+                      trade.potentialRR !== null ||
+                      trade.htfBias ||
                       (trade.ruleChecks && trade.ruleChecks.length > 0) ||
-                      (trade.images && trade.images.length > 0);
+                      (trade.images && trade.images.length > 0) ||
+                      trade.entryPrice !== null;
 
                     return (
                       <React.Fragment key={trade.id}>
@@ -375,8 +388,7 @@ export function TradeTable({
                                     )}
                                   </div>
                                   <div className="text-[10px] text-muted-foreground">
-                                    {format(new Date(trade.entryAt), "HH:mm")} &rarr;{" "}
-                                    {format(new Date(trade.exitAt), "HH:mm")}
+                                    {format(new Date(trade.entryAt), "HH:mm")}
                                   </div>
                                 </>
                               );
@@ -403,27 +415,42 @@ export function TradeTable({
                             </div>
                           </td>
 
-                          {/* Direction */}
+                          {/* Mode / Direction */}
                           <td className="px-3.5 py-2.5 whitespace-nowrap">
-                            {trade.direction === "long" ? (
+                            {isMissed ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                                <AlertCircle className="h-2.5 w-2.5" />
+                                MISSED
+                              </span>
+                            ) : isNoTrade ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-500/15 text-slate-400 border border-slate-500/30">
+                                <MinusCircle className="h-2.5 w-2.5" />
+                                NO TRADE
+                              </span>
+                            ) : trade.direction === "long" ? (
                               <span className="font-semibold text-[#22A06B] text-[11px]">
                                 LONG
                               </span>
-                            ) : (
+                            ) : trade.direction === "short" ? (
                               <span className="font-semibold text-[#DB5461] text-[11px]">
                                 SHORT
+                              </span>
+                            ) : (
+                              <span className="font-semibold text-primary text-[11px]">
+                                TRADE
                               </span>
                             )}
                           </td>
 
-                          {/* Entry Price */}
-                          <td className="px-3.5 py-2.5 text-right font-mono-numbers text-foreground">
-                            {formatPrice(trade.entryPrice)}
-                          </td>
-
-                          {/* Exit Price */}
-                          <td className="px-3.5 py-2.5 text-right font-mono-numbers text-foreground">
-                            {formatPrice(trade.exitPrice)}
+                          {/* Risk ($) */}
+                          <td className="px-3.5 py-2.5 text-right font-mono-numbers text-muted-foreground">
+                            {isTrade && trade.riskAmount ? (
+                              <span className="text-foreground font-medium">
+                                {formatCurrency(trade.riskAmount)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/40">—</span>
+                            )}
                           </td>
 
                           {/* Gross P&L */}
@@ -436,20 +463,20 @@ export function TradeTable({
                                 : "text-muted-foreground"
                             }`}
                           >
-                            {formatCurrency(trade.grossPnl)}
+                            {isTrade ? formatCurrency(trade.grossPnl) : "$0.00"}
                           </td>
 
                           {/* R-Multiple */}
                           <td
                             className={`px-3.5 py-2.5 text-right font-mono-numbers font-semibold ${
-                              trade.rMultiple !== null && trade.rMultiple > 0
+                              isTrade && trade.rMultiple !== null && trade.rMultiple > 0
                                 ? "text-[#22A06B]"
-                                : trade.rMultiple !== null && trade.rMultiple < 0
+                                : isTrade && trade.rMultiple !== null && trade.rMultiple < 0
                                 ? "text-[#DB5461]"
                                 : "text-muted-foreground"
                             }`}
                           >
-                            {trade.rMultiple !== null
+                            {isTrade && trade.rMultiple !== null
                               ? trade.rMultiple > 0
                                 ? `+${trade.rMultiple.toFixed(2)}R`
                                 : `${trade.rMultiple.toFixed(2)}R`
@@ -458,27 +485,42 @@ export function TradeTable({
 
                           {/* Result */}
                           <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
-                            <Badge
-                              variant={
-                                trade.result === "win"
-                                  ? "win"
-                                  : trade.result === "loss"
-                                  ? "loss"
-                                  : "neutral"
-                              }
-                              className="capitalize font-medium text-[11px]"
-                            >
-                              {trade.result}
-                            </Badge>
+                            {isMissed ? (
+                              <Badge variant="outline" className="text-[10px] text-amber-400 border-amber-500/30 bg-amber-500/10 font-semibold">
+                                Missed
+                              </Badge>
+                            ) : isNoTrade ? (
+                              <Badge variant="outline" className="text-[10px] text-slate-400 border-slate-500/30 bg-slate-500/10 font-semibold">
+                                No Trade
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant={
+                                  trade.result === "win"
+                                    ? "win"
+                                    : trade.result === "loss"
+                                    ? "loss"
+                                    : "neutral"
+                                }
+                                className="capitalize font-medium text-[11px]"
+                              >
+                                {trade.result}
+                              </Badge>
+                            )}
                           </td>
 
-                          {/* Setup / Model (Extra Column 1) */}
-                          <td className="px-3.5 py-2.5 text-muted-foreground max-w-[180px] truncate">
-                            {trade.setupModel ? (
+                          {/* Playbook Strategy / Setup */}
+                          <td className="px-3.5 py-2.5 text-muted-foreground max-w-[200px] truncate">
+                            {trade.strategy?.name ? (
                               <span
-                                className="text-foreground/90 font-medium"
-                                title={trade.setupModel}
+                                className="inline-flex items-center gap-1 font-medium text-foreground bg-primary/10 border border-primary/20 px-2 py-0.5 rounded text-[11px]"
+                                title={`Playbook: ${trade.strategy.name}`}
                               >
+                                <BookOpen className="h-3 w-3 text-primary" />
+                                <span>{trade.strategy.name}</span>
+                              </span>
+                            ) : trade.setupModel ? (
+                              <span className="text-foreground/90 font-medium" title={trade.setupModel}>
                                 {trade.setupModel}
                               </span>
                             ) : (
@@ -486,7 +528,7 @@ export function TradeTable({
                             )}
                           </td>
 
-                          {/* Rules Followed (Extra Column 2) */}
+                          {/* Rules Followed */}
                           <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
                             {trade.ruleChecks && trade.ruleChecks.length > 0 ? (
                               (() => {
@@ -514,17 +556,11 @@ export function TradeTable({
                                 );
                               })()
                             ) : trade.rulesFollowed === true ? (
-                              <span
-                                className="inline-flex items-center text-[#22A06B]"
-                                title="Rules followed"
-                              >
+                              <span className="inline-flex items-center text-[#22A06B]" title="Rules followed">
                                 <Check className="h-3.5 w-3.5 stroke-[2.5]" />
                               </span>
                             ) : trade.rulesFollowed === false ? (
-                              <span
-                                className="inline-flex items-center text-[#DB5461]"
-                                title="Rules broken"
-                              >
+                              <span className="inline-flex items-center text-[#DB5461]" title="Rules broken">
                                 <X className="h-3.5 w-3.5 stroke-[2.5]" />
                               </span>
                             ) : (
@@ -579,109 +615,136 @@ export function TradeTable({
                         {/* Expandable details row */}
                         {isExpanded && (
                           <tr className="bg-secondary/20">
-                            <td colSpan={12} className="px-5 py-3">
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                                {trade.stopLoss !== null && (
-                                  <div>
-                                    <span className="text-muted-foreground block text-[10px] uppercase font-medium">
-                                      Stop Loss
-                                    </span>
-                                    <span className="font-mono-numbers text-foreground">
-                                      {formatPrice(trade.stopLoss)}
-                                    </span>
-                                  </div>
-                                )}
-
-                                {trade.rMultiple !== null && (
-                                  <div>
-                                    <span className="text-muted-foreground block text-[10px] uppercase font-medium">
-                                      Realized R
-                                    </span>
-                                    <span
-                                      className={`font-mono-numbers font-semibold ${
-                                        trade.rMultiple > 0
-                                          ? "text-[#22A06B]"
-                                          : trade.rMultiple < 0
-                                          ? "text-[#DB5461]"
-                                          : "text-foreground"
-                                      }`}
-                                    >
-                                      {trade.rMultiple > 0
-                                        ? `+${trade.rMultiple.toFixed(2)}R`
-                                        : `${trade.rMultiple.toFixed(2)}R`}
-                                    </span>
-                                  </div>
-                                )}
-
-                                {trade.htfBias && (
-                                  <div>
-                                    <span className="text-muted-foreground block text-[10px] uppercase font-medium">
-                                      HTF Bias
-                                    </span>
-                                    <span className="text-foreground">
-                                      {trade.htfBias}
-                                    </span>
-                                  </div>
-                                )}
-
-                                {trade.rr && (
-                                  <div>
-                                    <span className="text-muted-foreground block text-[10px] uppercase font-medium">
-                                      Planned R:R
-                                    </span>
-                                    <span className="font-mono-numbers text-foreground">
-                                      {trade.rr}
-                                    </span>
-                                  </div>
-                                )}
-
-                                {trade.riskPercent !== null &&
-                                  trade.riskPercent !== undefined && (
+                            <td colSpan={11} className="px-5 py-4">
+                              <div className="space-y-3.5 text-xs">
+                                {/* Top Grid details */}
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                  {trade.strategy?.name && (
                                     <div>
                                       <span className="text-muted-foreground block text-[10px] uppercase font-medium">
-                                        Risk %
+                                        Playbook Strategy
                                       </span>
-                                      <span className="font-mono-numbers text-foreground">
-                                        {trade.riskPercent}%
+                                      <span className="font-semibold text-foreground">
+                                        {trade.strategy.name}
                                       </span>
                                     </div>
                                   )}
 
-                                {trade.drawDirection && (
-                                  <div>
-                                    <span className="text-muted-foreground block text-[10px] uppercase font-medium">
-                                      Draw on Liquidity
+                                  {trade.riskAmount !== null && (
+                                    <div>
+                                      <span className="text-muted-foreground block text-[10px] uppercase font-medium">
+                                        Risked Amount
+                                      </span>
+                                      <span className="font-mono-numbers text-foreground font-semibold">
+                                        {formatCurrency(trade.riskAmount)}
+                                        {trade.riskPercent !== null && ` (${trade.riskPercent.toFixed(2)}%)`}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {trade.rMultiple !== null && (
+                                    <div>
+                                      <span className="text-muted-foreground block text-[10px] uppercase font-medium">
+                                        Realized R
+                                      </span>
+                                      <span
+                                        className={`font-mono-numbers font-semibold ${
+                                          trade.rMultiple > 0
+                                            ? "text-[#22A06B]"
+                                            : trade.rMultiple < 0
+                                            ? "text-[#DB5461]"
+                                            : "text-foreground"
+                                        }`}
+                                      >
+                                        {trade.rMultiple > 0
+                                          ? `+${trade.rMultiple.toFixed(2)}R`
+                                          : `${trade.rMultiple.toFixed(2)}R`}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {trade.potentialRR !== null && (
+                                    <div>
+                                      <span className="text-muted-foreground block text-[10px] uppercase font-medium">
+                                        Max Potential R
+                                      </span>
+                                      <span className="font-mono-numbers text-primary font-semibold">
+                                        {trade.potentialRR.toFixed(2)}R
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {trade.htfBias && (
+                                    <div>
+                                      <span className="text-muted-foreground block text-[10px] uppercase font-medium">
+                                        HTF Bias
+                                      </span>
+                                      <span className="text-foreground">
+                                        {trade.htfBias}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Confluences pills */}
+                                {trade.confluences && trade.confluences.length > 0 && (
+                                  <div className="pt-2 border-t border-border/60">
+                                    <span className="text-muted-foreground block text-[10px] uppercase font-medium mb-1.5 flex items-center gap-1">
+                                      <Layers className="h-3 w-3 text-primary" />
+                                      <span>Active Confluences ({trade.confluences.length})</span>
                                     </span>
-                                    <span className="text-foreground">
-                                      {trade.drawDirection}
-                                    </span>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {trade.confluences.map((c) => (
+                                        <span
+                                          key={c.id}
+                                          className="px-2 py-0.5 rounded text-[11px] font-medium bg-primary/15 text-primary border border-primary/30"
+                                        >
+                                          {c.name}
+                                        </span>
+                                      ))}
+                                    </div>
                                   </div>
                                 )}
 
-                                {trade.newsToday && (
-                                  <div>
-                                    <span className="text-muted-foreground block text-[10px] uppercase font-medium">
-                                      News
+                                {/* Reason / Missed entry notes */}
+                                {trade.reasonNotes && (
+                                  <div className="pt-2 border-t border-border/60">
+                                    <span className="text-amber-400 block text-[10px] uppercase font-medium mb-0.5">
+                                      Reason / Observation
                                     </span>
-                                    <span className="text-foreground">
-                                      {trade.newsToday}
-                                    </span>
+                                    <p className="text-xs text-foreground whitespace-pre-wrap leading-relaxed">
+                                      {trade.reasonNotes}
+                                    </p>
                                   </div>
                                 )}
 
-                                {trade.emotionalState && (
-                                  <div>
-                                    <span className="text-muted-foreground block text-[10px] uppercase font-medium">
-                                      Emotional State
+                                {/* Before Trade Notes */}
+                                {trade.beforeTradeNotes && (
+                                  <div className="pt-2 border-t border-border/60">
+                                    <span className="text-primary block text-[10px] uppercase font-medium mb-0.5">
+                                      Pre-Execution Thesis & Levels
                                     </span>
-                                    <span className="text-foreground">
-                                      {trade.emotionalState}
-                                    </span>
+                                    <p className="text-xs text-foreground whitespace-pre-wrap leading-relaxed">
+                                      {trade.beforeTradeNotes}
+                                    </p>
                                   </div>
                                 )}
 
+                                {/* Post-Trade Notes */}
+                                {trade.notes && (
+                                  <div className="pt-2 border-t border-border/60">
+                                    <span className="text-muted-foreground block text-[10px] uppercase font-medium mb-0.5">
+                                      Post-Trade Review & Execution
+                                    </span>
+                                    <p className="text-xs text-foreground whitespace-pre-wrap leading-relaxed">
+                                      {trade.notes}
+                                    </p>
+                                  </div>
+                                )}
+
+                                {/* Rule checklist */}
                                 {trade.ruleChecks && trade.ruleChecks.length > 0 && (
-                                  <div className="col-span-2 sm:col-span-4 pt-1.5 border-t border-border">
+                                  <div className="pt-2 border-t border-border/60">
                                     <span className="text-muted-foreground block text-[10px] uppercase font-medium mb-1.5">
                                       Rule Checklist ({trade.ruleChecks.filter((c) => c.followed).length}/{trade.ruleChecks.length} Followed)
                                     </span>
@@ -707,19 +770,8 @@ export function TradeTable({
                                   </div>
                                 )}
 
-                                {trade.notes && (
-                                  <div className="col-span-2 sm:col-span-4 pt-1.5 border-t border-border">
-                                    <span className="text-muted-foreground block text-[10px] uppercase font-medium mb-0.5">
-                                      Notes
-                                    </span>
-                                    <p className="text-xs text-foreground whitespace-pre-wrap">
-                                      {trade.notes}
-                                    </p>
-                                  </div>
-                                )}
-
                                 {/* Screenshots & Chart Analysis Gallery */}
-                                <div className="col-span-2 sm:col-span-4 pt-2 border-t border-border">
+                                <div className="pt-2 border-t border-border/60">
                                   <div className="flex items-center justify-between mb-1.5">
                                     <span className="text-muted-foreground block text-[10px] uppercase font-medium flex items-center gap-1.5">
                                       <ImageIcon className="h-3 w-3 text-primary" />
@@ -748,24 +800,22 @@ export function TradeTable({
                                           {/* eslint-disable-next-line @next/next/no-img-element */}
                                           <img
                                             src={img.url}
-                                            alt={img.label || `Screenshot ${imgIdx + 1}`}
-                                            className="w-24 h-16 sm:w-28 sm:h-18 object-cover transition-transform duration-200 group-hover:scale-105"
+                                            alt={img.label || (img.role === "before_trade" ? "Pre-Trade" : "Outcome")}
+                                            className="w-28 h-18 sm:w-32 sm:h-20 object-cover transition-transform duration-200 group-hover:scale-105"
                                           />
                                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                             <Camera className="h-4 w-4 text-white drop-shadow" />
                                           </div>
-                                          {img.label && (
-                                            <div className="absolute bottom-0 inset-x-0 bg-black/75 px-1 py-0.5 text-[9px] font-medium text-white text-center truncate">
-                                              {img.label}
-                                            </div>
-                                          )}
+                                          <div className="absolute bottom-0 inset-x-0 bg-black/75 px-1 py-0.5 text-[9px] font-medium text-white text-center truncate">
+                                            {img.label || (img.role === "before_trade" ? "Pre-Trade" : "Outcome")}
+                                          </div>
                                         </div>
                                       ))}
                                     </div>
                                   ) : (
                                     <div className="rounded-md border border-dashed border-border/80 bg-secondary/20 p-2.5 text-center flex items-center justify-between">
                                       <span className="text-[11px] text-muted-foreground">
-                                        No screenshots attached to this trade.
+                                        No screenshots attached to this entry.
                                       </span>
                                       <Button
                                         type="button"

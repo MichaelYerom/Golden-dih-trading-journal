@@ -21,6 +21,7 @@ export interface TradeImageEntity {
   tradeId: string;
   url: string;
   label: string | null;
+  role?: "before_trade" | "outcome";
   createdAt: Date;
 }
 
@@ -28,20 +29,30 @@ export interface TradeEntity {
   id: string;
   sessionId: string;
   symbol: string;
-  direction: string;
+  direction: string | null;
   entryAt: Date;
   exitAt: Date;
-  entryPrice: number;
-  exitPrice: number;
+  entryPrice: number | null;
+  exitPrice: number | null;
   stopLoss: number | null;
   rMultiple: number | null;
   grossPnl: number;
-  result: string;
+  result: string | null;
   notes: string | null;
   createdAt: Date;
   htfBias: string | null;
   newsToday: string | null;
+  riskAmount: number | null;
   riskPercent: number | null;
+  rrAchieved: number | null;
+  potentialRR: number | null;
+  lossR: number | null;
+  beforeTradeNotes: string | null;
+  reasonNotes: string | null;
+  outcomeType: "trade" | "missed_entry" | "no_trade";
+  strategyId: string | null;
+  strategy?: { id: string; name: string } | null;
+  confluences?: Array<{ id: string; name: string }>;
   drawDirection: string | null;
   setupModel: string | null;
   emotionalState: string | null;
@@ -49,6 +60,46 @@ export interface TradeEntity {
   rr: string | null;
   ruleChecks?: TradeRuleCheckEntity[];
   images?: TradeImageEntity[];
+}
+
+export function calculateTradeOutcomeR(
+  result: string | null | undefined,
+  rrAchieved?: number | null,
+  lossR?: number | null
+): number | null {
+  if (result === "win") {
+    return rrAchieved !== null && rrAchieved !== undefined && !isNaN(Number(rrAchieved))
+      ? Math.abs(Number(rrAchieved))
+      : null;
+  }
+  if (result === "loss") {
+    return lossR !== null && lossR !== undefined && !isNaN(Number(lossR))
+      ? -Math.abs(Number(lossR))
+      : -1;
+  }
+  if (result === "breakeven") {
+    return 0;
+  }
+  return null;
+}
+
+export function calculateTradePnL(
+  riskAmount: number | null | undefined,
+  rMultiple: number | null | undefined
+): number {
+  const risk = Number(riskAmount || 0);
+  const r = Number(rMultiple || 0);
+  return Math.round(risk * r * 100) / 100;
+}
+
+export function calculateRiskPercent(
+  riskAmount: number | null | undefined,
+  sessionBalanceAtEntry: number | null | undefined
+): number {
+  const risk = Number(riskAmount || 0);
+  const balance = Number(sessionBalanceAtEntry || 0);
+  if (balance <= 0 || risk <= 0) return 0;
+  return Math.round((risk / balance) * 10000) / 100;
 }
 
 export interface EquityPoint {
@@ -136,6 +187,8 @@ export interface SessionStats {
   winCount: number;
   lossCount: number;
   breakevenCount: number;
+  missedEntriesCount: number;
+  noTradeDaysCount: number;
   totalGains: number;
   totalLosses: number;
   currentBalance: number;
@@ -427,18 +480,27 @@ export interface SessionTradesAndStats {
 export interface CreateTradeInput {
   sessionId: string;
   symbol: string;
-  direction: "long" | "short";
+  direction?: "long" | "short" | null;
   entryAt: Date;
   exitAt: Date;
-  entryPrice: number;
-  exitPrice: number;
+  entryPrice?: number | null;
+  exitPrice?: number | null;
   stopLoss?: number | null;
-  grossPnl: number;
-  result: "win" | "loss" | "breakeven";
+  grossPnl?: number;
+  result?: "win" | "loss" | "breakeven" | null;
   notes?: string | null;
   htfBias?: string | null;
   newsToday?: string | null;
+  riskAmount?: number | null;
   riskPercent?: number | null;
+  rrAchieved?: number | null;
+  potentialRR?: number | null;
+  lossR?: number | null;
+  beforeTradeNotes?: string | null;
+  reasonNotes?: string | null;
+  outcomeType?: "trade" | "missed_entry" | "no_trade";
+  strategyId?: string | null;
+  confluenceIds?: string[];
   drawDirection?: string | null;
   setupModel?: string | null;
   emotionalState?: string | null;
@@ -449,18 +511,27 @@ export interface CreateTradeInput {
 
 export interface UpdateTradeInput {
   symbol?: string;
-  direction?: "long" | "short";
+  direction?: "long" | "short" | null;
   entryAt?: Date;
   exitAt?: Date;
-  entryPrice?: number;
-  exitPrice?: number;
+  entryPrice?: number | null;
+  exitPrice?: number | null;
   stopLoss?: number | null;
   grossPnl?: number;
-  result?: "win" | "loss" | "breakeven";
+  result?: "win" | "loss" | "breakeven" | null;
   notes?: string | null;
   htfBias?: string | null;
   newsToday?: string | null;
+  riskAmount?: number | null;
   riskPercent?: number | null;
+  rrAchieved?: number | null;
+  potentialRR?: number | null;
+  lossR?: number | null;
+  beforeTradeNotes?: string | null;
+  reasonNotes?: string | null;
+  outcomeType?: "trade" | "missed_entry" | "no_trade";
+  strategyId?: string | null;
+  confluenceIds?: string[];
   drawDirection?: string | null;
   setupModel?: string | null;
   emotionalState?: string | null;

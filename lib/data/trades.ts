@@ -9,6 +9,9 @@ import {
   CreateTradeInput,
   UpdateTradeInput,
   calculateRMultiple,
+  calculateTradeOutcomeR,
+  calculateTradePnL,
+  calculateRiskPercent,
   calculateExpectancy,
   calculateRDistribution,
   calculateDrawdown,
@@ -104,7 +107,15 @@ export async function getSessionTradesAndStats(
   const [tradesRes, rules] = await Promise.all([
     supabase
       .from("Trade")
-      .select("*, ruleChecks:TradeRuleCheck(*, rule:Rule(id, text)), images:TradeImage(*)")
+      .select(`
+        *,
+        ruleChecks:TradeRuleCheck(*, rule:Rule(id, text)),
+        images:TradeImage(*),
+        strategy:Strategy(id, name),
+        tradeConfluences:TradeConfluence(
+          confluence:Confluence(*)
+        )
+      `)
       .eq("sessionId", sessionId)
       .order("entryAt", { ascending: true })
       .order("createdAt", { ascending: true }),
@@ -117,28 +128,46 @@ export async function getSessionTradesAndStats(
 
   const rawTrades = tradesRes.data || [];
 
-  // Ensure rMultiple is derived if not stored, preserving backwards compatibility
   const trades: TradeEntity[] = rawTrades.map((t: any) => {
-    const entryPrice = Number(t.entryPrice);
-    const exitPrice = Number(t.exitPrice);
+    const entryPrice = t.entryPrice !== null && t.entryPrice !== undefined ? Number(t.entryPrice) : null;
+    const exitPrice = t.exitPrice !== null && t.exitPrice !== undefined ? Number(t.exitPrice) : null;
     const stopLoss = t.stopLoss !== null && t.stopLoss !== undefined ? Number(t.stopLoss) : null;
-    const grossPnl = Number(t.grossPnl);
+    const grossPnl = Number(t.grossPnl || 0);
+    const riskAmount = t.riskAmount !== null && t.riskAmount !== undefined ? Number(t.riskAmount) : null;
     const riskPercent = t.riskPercent !== null && t.riskPercent !== undefined ? Number(t.riskPercent) : null;
+    const rrAchieved = t.rrAchieved !== null && t.rrAchieved !== undefined ? Number(t.rrAchieved) : null;
+    const potentialRR = t.potentialRR !== null && t.potentialRR !== undefined ? Number(t.potentialRR) : null;
+    const lossR = t.lossR !== null && t.lossR !== undefined ? Number(t.lossR) : null;
+    const outcomeType = (t.outcomeType as "trade" | "missed_entry" | "no_trade") || "trade";
 
-    const derivedR =
-      t.rMultiple !== null && t.rMultiple !== undefined
-        ? Number(t.rMultiple)
-        : calculateRMultiple(entryPrice, exitPrice, stopLoss, t.direction);
+    let derivedR: number | null = null;
+    if (t.rMultiple !== null && t.rMultiple !== undefined) {
+      derivedR = Number(t.rMultiple);
+    } else if (outcomeType === "trade") {
+      derivedR = calculateTradeOutcomeR(t.result, rrAchieved, lossR);
+      if (derivedR === null && entryPrice !== null && exitPrice !== null && t.direction) {
+        derivedR = calculateRMultiple(entryPrice, exitPrice, stopLoss, t.direction);
+      }
+    }
 
     const sortedImages = (Array.isArray(t.images) ? t.images : []).sort(
       (a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
 
+    const rawConfluences = Array.isArray(t.tradeConfluences)
+      ? t.tradeConfluences.map((tc: any) => tc.confluence).filter(Boolean)
+      : [];
+
+    const confluences = rawConfluences.map((c: any) => ({
+      id: c.id,
+      name: c.name,
+    }));
+
     return {
       id: t.id,
       sessionId: t.sessionId,
       symbol: t.symbol,
-      direction: t.direction,
+      direction: t.direction ?? null,
       entryAt: new Date(t.entryAt),
       exitAt: new Date(t.exitAt),
       entryPrice,
@@ -146,17 +175,27 @@ export async function getSessionTradesAndStats(
       stopLoss,
       rMultiple: derivedR,
       grossPnl,
-      result: t.result,
+      result: t.result ?? null,
       notes: t.notes ?? null,
       createdAt: new Date(t.createdAt),
       htfBias: t.htfBias ?? null,
       newsToday: t.newsToday ?? null,
+      riskAmount,
       riskPercent,
+      rrAchieved,
+      potentialRR,
+      lossR,
+      beforeTradeNotes: t.beforeTradeNotes ?? null,
+      reasonNotes: t.reasonNotes ?? null,
+      outcomeType,
+      strategyId: t.strategyId ?? null,
+      strategy: t.strategy ? { id: t.strategy.id, name: t.strategy.name } : null,
+      confluences,
       drawDirection: t.drawDirection ?? null,
-      setupModel: t.setupModel ?? null,
+      setupModel: t.strategy ? t.strategy.name : (t.setupModel ?? null),
       emotionalState: t.emotionalState ?? null,
       rulesFollowed: t.rulesFollowed ?? null,
-      rr: t.rr ?? null,
+      rr: t.rr ?? (derivedR !== null ? `${derivedR > 0 ? "+" : ""}${derivedR}R` : null),
       ruleChecks: (Array.isArray(t.ruleChecks) ? t.ruleChecks : []).map((rc: any) => ({
         id: rc.id,
         tradeId: rc.tradeId,
@@ -169,10 +208,24 @@ export async function getSessionTradesAndStats(
         tradeId: img.tradeId,
         url: img.url,
         label: img.label ?? null,
+        role: (img.role as "before_trade" | "outcome") || "outcome",
         createdAt: new Date(img.createdAt),
       })),
     };
   });
+
+  // Filter active trades for core analytics
+  const activeTrades = trades.filter(
+    (t) => t.outcomeType === "trade" || !t.outcomeType
+  );
+
+  const missedEntriesCount = trades.filter(
+    (t) => t.outcomeType === "missed_entry"
+  ).length;
+
+  const noTradeDaysCount = trades.filter(
+    (t) => t.outcomeType === "no_trade"
+  ).length;
 
   let netPnl = 0;
   let winCount = 0;
@@ -181,9 +234,9 @@ export async function getSessionTradesAndStats(
   let totalGains = 0;
   let totalLosses = 0;
 
-  const totalTrades = trades.length;
+  const totalTrades = activeTrades.length;
 
-  for (const trade of trades) {
+  for (const trade of activeTrades) {
     netPnl += trade.grossPnl;
     if (trade.result === "win") {
       winCount++;
@@ -206,10 +259,10 @@ export async function getSessionTradesAndStats(
   const currentBalance = startingBalance + netPnl;
 
   // Expectancy and R distribution
-  const expectancyData = calculateExpectancy(trades);
-  const rDistribution = calculateRDistribution(trades);
+  const expectancyData = calculateExpectancy(activeTrades);
+  const rDistribution = calculateRDistribution(activeTrades);
 
-  // Build Equity Curve
+  // Build Equity Curve across all trades chronologically
   const equityCurve: EquityPoint[] = [];
 
   // Point 0: Starting balance
@@ -227,7 +280,11 @@ export async function getSessionTradesAndStats(
 
   let runningBalance = startingBalance;
   trades.forEach((trade, idx) => {
-    runningBalance += trade.grossPnl;
+    const isRealTrade = trade.outcomeType === "trade" || !trade.outcomeType;
+    if (isRealTrade) {
+      runningBalance += trade.grossPnl;
+    }
+
     const formattedDate = new Intl.DateTimeFormat("en-US", {
       month: "short",
       day: "numeric",
@@ -242,20 +299,24 @@ export async function getSessionTradesAndStats(
       rawDate: trade.entryAt,
       balance: Math.round(runningBalance * 100) / 100,
       pnl: Math.round((runningBalance - startingBalance) * 100) / 100,
-      tradePnl: trade.grossPnl,
+      tradePnl: isRealTrade ? trade.grossPnl : 0,
       symbol: trade.symbol,
-      direction: trade.direction,
-      result: trade.result,
-      label: `Trade #${idx + 1} (${trade.symbol})`,
+      direction: trade.direction ?? undefined,
+      result: trade.result ?? undefined,
+      label: isRealTrade
+        ? `Trade #${idx + 1} (${trade.symbol})`
+        : trade.outcomeType === "missed_entry"
+        ? `Missed Entry (${trade.symbol})`
+        : `No Trade Day (${trade.symbol})`,
     });
   });
 
   // Calculate Drawdown, Streaks, Compliance, Time, Setup, and Calendar Analytics
   const drawdownDetails = calculateDrawdown(equityCurve);
-  const streaks = calculateStreaks(trades);
-  const compliance = calculateRuleCompliance(trades, rules);
-  const timeAnalytics = calculateTimeAnalytics(trades);
-  const setupAnalytics = calculateSetupPerformance(trades);
+  const streaks = calculateStreaks(activeTrades);
+  const compliance = calculateRuleCompliance(activeTrades, rules);
+  const timeAnalytics = calculateTimeAnalytics(activeTrades);
+  const setupAnalytics = calculateSetupPerformance(activeTrades);
   const calendarAnalytics = calculateCalendarAnalytics(
     trades,
     sessionStartDate,
@@ -263,19 +324,21 @@ export async function getSessionTradesAndStats(
   );
 
   const stats: SessionStats = {
-    netPnl,
-    netPnlPercent,
-    winRate,
-    profitFactor,
-    avgWin,
-    avgLoss,
+    netPnl: Math.round(netPnl * 100) / 100,
+    netPnlPercent: Math.round(netPnlPercent * 100) / 100,
+    winRate: Math.round(winRate * 1000) / 1000,
+    profitFactor: Math.round(profitFactor * 100) / 100,
+    avgWin: Math.round(avgWin * 100) / 100,
+    avgLoss: Math.round(avgLoss * 100) / 100,
     totalTrades,
     winCount,
     lossCount,
     breakevenCount,
-    totalGains,
-    totalLosses,
-    currentBalance,
+    missedEntriesCount,
+    noTradeDaysCount,
+    totalGains: Math.round(totalGains * 100) / 100,
+    totalLosses: Math.round(totalLosses * 100) / 100,
+    currentBalance: Math.round(currentBalance * 100) / 100,
     expectancy: expectancyData.expectancy,
     avgWinR: expectancyData.avgWinR,
     avgLossR: expectancyData.avgLossR,
@@ -307,18 +370,68 @@ export async function getSessionTradesAndStats(
 export async function createTrade(data: CreateTradeInput) {
   const supabase = await createClient();
   const tradeId = crypto.randomUUID();
+  const outcomeType = data.outcomeType || "trade";
 
-  const stopLoss =
-    data.stopLoss !== undefined && data.stopLoss !== null && !isNaN(data.stopLoss)
-      ? Number(data.stopLoss)
+  let rMultiple: number | null = null;
+  let grossPnl = 0;
+  let result: string | null = null;
+
+  if (outcomeType === "missed_entry" || outcomeType === "no_trade") {
+    rMultiple = null;
+    grossPnl = 0;
+    result = null;
+  } else {
+    result = data.result || "win";
+
+    if (data.result) {
+      rMultiple = calculateTradeOutcomeR(data.result, data.rrAchieved, data.lossR);
+    }
+
+    if (rMultiple === null && data.entryPrice !== undefined && data.exitPrice !== undefined && data.entryPrice !== null && data.exitPrice !== null && data.direction) {
+      rMultiple = calculateRMultiple(
+        data.entryPrice,
+        data.exitPrice,
+        data.stopLoss,
+        data.direction
+      );
+    }
+
+    if (data.riskAmount !== undefined && data.riskAmount !== null && rMultiple !== null) {
+      grossPnl = calculateTradePnL(data.riskAmount, rMultiple);
+    } else if (data.grossPnl !== undefined && data.grossPnl !== null) {
+      grossPnl = Number(data.grossPnl);
+    }
+  }
+
+  // Calculate and store riskPercent at time of entry if riskAmount is provided
+  let calculatedRiskPercent: number | null =
+    data.riskPercent !== undefined && data.riskPercent !== null
+      ? Number(data.riskPercent)
       : null;
 
-  const rMultiple = calculateRMultiple(
-    data.entryPrice,
-    data.exitPrice,
-    stopLoss,
-    data.direction
-  );
+  if (calculatedRiskPercent === null && data.riskAmount && outcomeType === "trade") {
+    // Fetch session starting balance + prior trades P&L up to entryAt
+    const { data: sessionData } = await supabase
+      .from("Session")
+      .select("startingBalance")
+      .eq("id", data.sessionId)
+      .single();
+
+    if (sessionData) {
+      const { data: priorTrades } = await supabase
+        .from("Trade")
+        .select("grossPnl")
+        .eq("sessionId", data.sessionId)
+        .lt("entryAt", data.entryAt.toISOString());
+
+      const priorPnl = (priorTrades || []).reduce(
+        (acc: number, t: any) => acc + Number(t.grossPnl || 0),
+        0
+      );
+      const balanceAtEntry = Number(sessionData.startingBalance || 0) + priorPnl;
+      calculatedRiskPercent = calculateRiskPercent(data.riskAmount, balanceAtEntry);
+    }
+  }
 
   let finalRulesFollowed =
     typeof data.rulesFollowed === "boolean" ? data.rulesFollowed : null;
@@ -333,27 +446,32 @@ export async function createTrade(data: CreateTradeInput) {
       id: tradeId,
       sessionId: data.sessionId,
       symbol: data.symbol.trim().toUpperCase(),
-      direction: data.direction,
+      direction: data.direction || null,
       entryAt: data.entryAt.toISOString(),
       exitAt: data.exitAt.toISOString(),
-      entryPrice: data.entryPrice,
-      exitPrice: data.exitPrice,
-      stopLoss,
+      entryPrice: data.entryPrice ?? null,
+      exitPrice: data.exitPrice ?? null,
+      stopLoss: data.stopLoss ?? null,
       rMultiple,
-      grossPnl: data.grossPnl,
-      result: data.result,
+      grossPnl,
+      result,
       notes: data.notes?.trim() || null,
       htfBias: data.htfBias?.trim() || null,
       newsToday: data.newsToday?.trim() || null,
-      riskPercent:
-        data.riskPercent !== undefined && data.riskPercent !== null
-          ? Number(data.riskPercent)
-          : null,
+      riskAmount: data.riskAmount !== undefined && data.riskAmount !== null ? Number(data.riskAmount) : null,
+      riskPercent: calculatedRiskPercent,
+      rrAchieved: data.rrAchieved !== undefined && data.rrAchieved !== null ? Number(data.rrAchieved) : null,
+      potentialRR: data.potentialRR !== undefined && data.potentialRR !== null ? Number(data.potentialRR) : null,
+      lossR: data.lossR !== undefined && data.lossR !== null ? Number(data.lossR) : -1,
+      beforeTradeNotes: data.beforeTradeNotes?.trim() || null,
+      reasonNotes: data.reasonNotes?.trim() || null,
+      outcomeType,
+      strategyId: data.strategyId || null,
       drawDirection: data.drawDirection?.trim() || null,
       setupModel: data.setupModel?.trim() || null,
       emotionalState: data.emotionalState?.trim() || null,
       rulesFollowed: finalRulesFollowed,
-      rr: data.rr?.trim() || null,
+      rr: data.rr?.trim() || (rMultiple !== null ? `${rMultiple > 0 ? "+" : ""}${rMultiple}R` : null),
     })
     .select()
     .single();
@@ -362,6 +480,18 @@ export async function createTrade(data: CreateTradeInput) {
     throw new Error(tradeErr?.message || "Failed to create trade");
   }
 
+  // Insert Confluence associations
+  if (data.confluenceIds && data.confluenceIds.length > 0) {
+    const uniqueConfIds = Array.from(new Set(data.confluenceIds)).filter(Boolean);
+    const confInserts = uniqueConfIds.map((confluenceId) => ({
+      id: crypto.randomUUID(),
+      tradeId,
+      confluenceId,
+    }));
+    await supabase.from("TradeConfluence").insert(confInserts);
+  }
+
+  // Insert Rule checks
   if (data.ruleChecks && data.ruleChecks.length > 0) {
     const checksToInsert = data.ruleChecks.map((rc) => ({
       id: crypto.randomUUID(),
@@ -381,7 +511,13 @@ export async function createTrade(data: CreateTradeInput) {
 
   const { data: fullTrade } = await supabase
     .from("Trade")
-    .select("*, ruleChecks:TradeRuleCheck(*, rule:Rule(*)), images:TradeImage(*)")
+    .select(`
+      *,
+      ruleChecks:TradeRuleCheck(*, rule:Rule(*)),
+      images:TradeImage(*),
+      strategy:Strategy(id, name),
+      tradeConfluences:TradeConfluence(confluence:Confluence(*))
+    `)
     .eq("id", tradeId)
     .single();
 
@@ -401,16 +537,38 @@ export async function updateTrade(id: string, data: UpdateTradeInput) {
     throw new Error(`Trade with id ${id} not found`);
   }
 
+  const outcomeType = data.outcomeType !== undefined ? data.outcomeType : (current.outcomeType || "trade");
   const symbol = data.symbol !== undefined ? data.symbol.trim().toUpperCase() : current.symbol;
-  const direction = data.direction !== undefined ? data.direction : (current.direction as "long" | "short");
-  const entryPrice = data.entryPrice !== undefined ? data.entryPrice : Number(current.entryPrice);
-  const exitPrice = data.exitPrice !== undefined ? data.exitPrice : Number(current.exitPrice);
-  const stopLoss =
-    data.stopLoss !== undefined
-      ? (data.stopLoss !== null && !isNaN(data.stopLoss) ? Number(data.stopLoss) : null)
-      : (current.stopLoss !== null && current.stopLoss !== undefined ? Number(current.stopLoss) : null);
+  const direction = data.direction !== undefined ? data.direction : current.direction;
+  const entryPrice = data.entryPrice !== undefined ? data.entryPrice : current.entryPrice;
+  const exitPrice = data.exitPrice !== undefined ? data.exitPrice : current.exitPrice;
+  const stopLoss = data.stopLoss !== undefined ? data.stopLoss : current.stopLoss;
+  const riskAmount = data.riskAmount !== undefined ? data.riskAmount : current.riskAmount;
+  const rrAchieved = data.rrAchieved !== undefined ? data.rrAchieved : current.rrAchieved;
+  const potentialRR = data.potentialRR !== undefined ? data.potentialRR : current.potentialRR;
+  const lossR = data.lossR !== undefined ? data.lossR : (current.lossR ?? -1);
 
-  const rMultiple = calculateRMultiple(entryPrice, exitPrice, stopLoss, direction);
+  let result = data.result !== undefined ? data.result : current.result;
+  let rMultiple = current.rMultiple;
+  let grossPnl = Number(current.grossPnl || 0);
+
+  if (outcomeType === "missed_entry" || outcomeType === "no_trade") {
+    rMultiple = null;
+    grossPnl = 0;
+    result = null;
+  } else {
+    if (result) {
+      rMultiple = calculateTradeOutcomeR(result, rrAchieved, lossR);
+    }
+    if (rMultiple === null && entryPrice !== null && exitPrice !== null && direction) {
+      rMultiple = calculateRMultiple(entryPrice, exitPrice, stopLoss, direction);
+    }
+    if (riskAmount !== null && rMultiple !== null) {
+      grossPnl = calculateTradePnL(riskAmount, rMultiple);
+    } else if (data.grossPnl !== undefined) {
+      grossPnl = Number(data.grossPnl);
+    }
+  }
 
   let finalRulesFollowed =
     data.rulesFollowed !== undefined ? data.rulesFollowed : current.rulesFollowed;
@@ -421,25 +579,30 @@ export async function updateTrade(id: string, data: UpdateTradeInput) {
 
   const updatePayload: Record<string, any> = {
     symbol,
-    direction,
-    entryPrice,
-    exitPrice,
-    stopLoss,
+    direction: direction || null,
+    entryPrice: entryPrice ?? null,
+    exitPrice: exitPrice ?? null,
+    stopLoss: stopLoss ?? null,
     rMultiple,
+    grossPnl,
+    result: result || null,
+    outcomeType,
     rulesFollowed: finalRulesFollowed,
   };
 
   if (data.entryAt !== undefined) updatePayload.entryAt = data.entryAt.toISOString();
   if (data.exitAt !== undefined) updatePayload.exitAt = data.exitAt.toISOString();
-  if (data.grossPnl !== undefined) updatePayload.grossPnl = data.grossPnl;
-  if (data.result !== undefined) updatePayload.result = data.result;
   if (data.notes !== undefined) updatePayload.notes = data.notes?.trim() || null;
   if (data.htfBias !== undefined) updatePayload.htfBias = data.htfBias?.trim() || null;
   if (data.newsToday !== undefined) updatePayload.newsToday = data.newsToday?.trim() || null;
-  if (data.riskPercent !== undefined) {
-    updatePayload.riskPercent =
-      data.riskPercent !== null && !isNaN(data.riskPercent) ? Number(data.riskPercent) : null;
-  }
+  if (data.riskAmount !== undefined) updatePayload.riskAmount = data.riskAmount !== null ? Number(data.riskAmount) : null;
+  if (data.riskPercent !== undefined) updatePayload.riskPercent = data.riskPercent !== null ? Number(data.riskPercent) : null;
+  if (data.rrAchieved !== undefined) updatePayload.rrAchieved = data.rrAchieved !== null ? Number(data.rrAchieved) : null;
+  if (data.potentialRR !== undefined) updatePayload.potentialRR = data.potentialRR !== null ? Number(data.potentialRR) : null;
+  if (data.lossR !== undefined) updatePayload.lossR = data.lossR !== null ? Number(data.lossR) : -1;
+  if (data.beforeTradeNotes !== undefined) updatePayload.beforeTradeNotes = data.beforeTradeNotes?.trim() || null;
+  if (data.reasonNotes !== undefined) updatePayload.reasonNotes = data.reasonNotes?.trim() || null;
+  if (data.strategyId !== undefined) updatePayload.strategyId = data.strategyId || null;
   if (data.drawDirection !== undefined) updatePayload.drawDirection = data.drawDirection?.trim() || null;
   if (data.setupModel !== undefined) updatePayload.setupModel = data.setupModel?.trim() || null;
   if (data.emotionalState !== undefined) updatePayload.emotionalState = data.emotionalState?.trim() || null;
@@ -456,6 +619,21 @@ export async function updateTrade(id: string, data: UpdateTradeInput) {
     throw new Error(updateErr?.message || "Failed to update trade");
   }
 
+  // Sync Confluences
+  if (data.confluenceIds !== undefined) {
+    await supabase.from("TradeConfluence").delete().eq("tradeId", id);
+    const uniqueIds = Array.from(new Set(data.confluenceIds)).filter(Boolean);
+    if (uniqueIds.length > 0) {
+      const inserts = uniqueIds.map((confluenceId) => ({
+        id: crypto.randomUUID(),
+        tradeId: id,
+        confluenceId,
+      }));
+      await supabase.from("TradeConfluence").insert(inserts);
+    }
+  }
+
+  // Sync Rules
   if (data.ruleChecks !== undefined) {
     await supabase.from("TradeRuleCheck").delete().eq("tradeId", id);
 
@@ -472,7 +650,13 @@ export async function updateTrade(id: string, data: UpdateTradeInput) {
 
   const { data: fullTrade } = await supabase
     .from("Trade")
-    .select("*, ruleChecks:TradeRuleCheck(*, rule:Rule(*)), images:TradeImage(*)")
+    .select(`
+      *,
+      ruleChecks:TradeRuleCheck(*, rule:Rule(*)),
+      images:TradeImage(*),
+      strategy:Strategy(id, name),
+      tradeConfluences:TradeConfluence(confluence:Confluence(*))
+    `)
     .eq("id", id)
     .single();
 

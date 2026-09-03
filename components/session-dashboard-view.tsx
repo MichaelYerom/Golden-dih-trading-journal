@@ -31,6 +31,9 @@ import {
   CalendarDays,
 } from "lucide-react";
 
+import { StrategyEntity } from "@/lib/data/strategies";
+import { ConfluenceEntity } from "@/lib/data/confluences";
+
 interface SessionDashboardViewProps {
   session: {
     id: string;
@@ -49,6 +52,8 @@ interface SessionDashboardViewProps {
   timeAnalytics: TimeAnalyticsResult;
   setupAnalytics: SetupAnalyticsResult;
   calendarAnalytics: CalendarAnalyticsResult;
+  strategies?: StrategyEntity[];
+  confluences?: ConfluenceEntity[];
 }
 
 export function SessionDashboardView({
@@ -63,6 +68,8 @@ export function SessionDashboardView({
   timeAnalytics,
   setupAnalytics,
   calendarAnalytics,
+  strategies = [],
+  confluences = [],
 }: SessionDashboardViewProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -508,6 +515,10 @@ export function SessionDashboardView({
                 sessionPeriodStart={session.periodStart}
                 sessionPeriodEnd={session.periodEnd}
                 sessionRules={rules}
+                strategies={strategies}
+                confluences={confluences}
+                sessionStartingBalance={session.startingBalance}
+                sessionCurrentBalance={stats.currentBalance}
               />
             </div>
 
@@ -517,6 +528,10 @@ export function SessionDashboardView({
               sessionPeriodStart={session.periodStart}
               sessionPeriodEnd={session.periodEnd}
               sessionRules={rules}
+              strategies={strategies}
+              confluences={confluences}
+              sessionStartingBalance={session.startingBalance}
+              sessionCurrentBalance={stats.currentBalance}
               initialSetupFilter={selectedSetupFilter}
             />
           </div>
@@ -539,6 +554,8 @@ export function SessionDashboardView({
           sessionPeriodStart={session.periodStart}
           sessionPeriodEnd={session.periodEnd}
           rules={rules}
+          strategies={strategies}
+          confluences={confluences}
           defaultSymbol={session.instrument}
           onSelectDate={handleSelectDateFromCalendar}
         />

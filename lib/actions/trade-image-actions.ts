@@ -24,6 +24,7 @@ export async function uploadTradeImageAction(formData: FormData): Promise<{
     tradeId: string;
     url: string;
     label: string | null;
+    role?: "before_trade" | "outcome";
     createdAt: string;
   };
   error?: string;
@@ -33,6 +34,7 @@ export async function uploadTradeImageAction(formData: FormData): Promise<{
     const tradeId = formData.get("tradeId") as string;
     const sessionId = formData.get("sessionId") as string;
     const label = (formData.get("label") as string) || null;
+    const role = ((formData.get("role") as string) || "outcome") as "before_trade" | "outcome";
     const file = formData.get("file") as File | null;
 
     if (!tradeId) {
@@ -91,6 +93,7 @@ export async function uploadTradeImageAction(formData: FormData): Promise<{
         tradeId,
         url: publicUrl,
         label: label?.trim() || null,
+        role,
       })
       .select()
       .single();
@@ -113,6 +116,7 @@ export async function uploadTradeImageAction(formData: FormData): Promise<{
         tradeId: created.tradeId,
         url: created.url,
         label: created.label,
+        role: created.role as "before_trade" | "outcome",
         createdAt: new Date(created.createdAt).toISOString(),
       },
     };
