@@ -248,3 +248,130 @@ WITH CHECK (
         WHERE t.id = "_TradeSetupTags"."B" AND s."userId" = auth.uid()::text
     )
 );
+
+-- =========================================================================
+-- PLAYBOOK SYSTEM (STRATEGIES, CHECKLISTS, RULES, CONFLUENCES)
+-- =========================================================================
+
+-- 10. Strategy Table
+CREATE TABLE IF NOT EXISTS public."Strategy" (
+    id TEXT PRIMARY KEY,
+    "userId" TEXT NOT NULL REFERENCES public."User"(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS "Strategy_userId_idx" ON public."Strategy"("userId");
+
+-- 11. StrategyChecklistItem Table (Setup Checklist)
+CREATE TABLE IF NOT EXISTS public."StrategyChecklistItem" (
+    id TEXT PRIMARY KEY,
+    "strategyId" TEXT NOT NULL REFERENCES public."Strategy"(id) ON DELETE CASCADE,
+    text TEXT NOT NULL,
+    "order" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS "StrategyChecklistItem_strategyId_idx" ON public."StrategyChecklistItem"("strategyId");
+
+-- 12. StrategyRule Table (Rules not to break)
+CREATE TABLE IF NOT EXISTS public."StrategyRule" (
+    id TEXT PRIMARY KEY,
+    "strategyId" TEXT NOT NULL REFERENCES public."Strategy"(id) ON DELETE CASCADE,
+    text TEXT NOT NULL,
+    "order" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS "StrategyRule_strategyId_idx" ON public."StrategyRule"("strategyId");
+
+-- 13. Confluence Table (User-scoped reusable confluence tags)
+CREATE TABLE IF NOT EXISTS public."Confluence" (
+    id TEXT PRIMARY KEY,
+    "userId" TEXT NOT NULL REFERENCES public."User"(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "Confluence_userId_name_key" UNIQUE ("userId", name)
+);
+
+CREATE INDEX IF NOT EXISTS "Confluence_userId_idx" ON public."Confluence"("userId");
+
+-- 14. StrategyConfluence Table (Join table between Strategy and Confluence)
+CREATE TABLE IF NOT EXISTS public."StrategyConfluence" (
+    id TEXT PRIMARY KEY,
+    "strategyId" TEXT NOT NULL REFERENCES public."Strategy"(id) ON DELETE CASCADE,
+    "confluenceId" TEXT NOT NULL REFERENCES public."Confluence"(id) ON DELETE CASCADE,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "StrategyConfluence_strategyId_confluenceId_key" UNIQUE ("strategyId", "confluenceId")
+);
+
+CREATE INDEX IF NOT EXISTS "StrategyConfluence_strategyId_idx" ON public."StrategyConfluence"("strategyId");
+CREATE INDEX IF NOT EXISTS "StrategyConfluence_confluenceId_idx" ON public."StrategyConfluence"("confluenceId");
+
+-- Strategy Policies
+CREATE POLICY "Users can view and manage their own strategies"
+ON public."Strategy"
+FOR ALL
+USING (auth.uid()::text = "userId")
+WITH CHECK (auth.uid()::text = "userId");
+
+-- StrategyChecklistItem Policies
+CREATE POLICY "Users can view and manage checklist items for their own strategies"
+ON public."StrategyChecklistItem"
+FOR ALL
+USING (
+    EXISTS (
+        SELECT 1 FROM public."Strategy" s
+        WHERE s.id = "StrategyChecklistItem"."strategyId" AND s."userId" = auth.uid()::text
+    )
+)
+WITH CHECK (
+    EXISTS (
+        SELECT 1 FROM public."Strategy" s
+        WHERE s.id = "StrategyChecklistItem"."strategyId" AND s."userId" = auth.uid()::text
+    )
+);
+
+-- StrategyRule Policies
+CREATE POLICY "Users can view and manage rules for their own strategies"
+ON public."StrategyRule"
+FOR ALL
+USING (
+    EXISTS (
+        SELECT 1 FROM public."Strategy" s
+        WHERE s.id = "StrategyRule"."strategyId" AND s."userId" = auth.uid()::text
+    )
+)
+WITH CHECK (
+    EXISTS (
+        SELECT 1 FROM public."Strategy" s
+        WHERE s.id = "StrategyRule"."strategyId" AND s."userId" = auth.uid()::text
+    )
+);
+
+-- Confluence Policies
+CREATE POLICY "Users can view and manage their own confluences"
+ON public."Confluence"
+FOR ALL
+USING (auth.uid()::text = "userId")
+WITH CHECK (auth.uid()::text = "userId");
+
+-- StrategyConfluence Policies
+CREATE POLICY "Users can view and manage confluence associations for their own strategies"
+ON public."StrategyConfluence"
+FOR ALL
+USING (
+    EXISTS (
+        SELECT 1 FROM public."Strategy" s
+        WHERE s.id = "StrategyConfluence"."strategyId" AND s."userId" = auth.uid()::text
+    )
+)
+WITH CHECK (
+    EXISTS (
+        SELECT 1 FROM public."Strategy" s
+        WHERE s.id = "StrategyConfluence"."strategyId" AND s."userId" = auth.uid()::text
+    )
+);
+
