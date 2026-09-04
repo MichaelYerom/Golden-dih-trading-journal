@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, BookOpen } from "lucide-react";
+import { LayoutDashboard, BookOpen, Lightbulb } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function MainNav() {
@@ -10,6 +10,7 @@ export function MainNav() {
 
   const isBacktests = pathname === "/" || pathname.startsWith("/sessions");
   const isPlaybook = pathname.startsWith("/playbook");
+  const isLessons = pathname.startsWith("/lessons");
 
   return (
     <nav className="flex items-center gap-1">
@@ -37,6 +38,19 @@ export function MainNav() {
       >
         <BookOpen className="h-3.5 w-3.5" />
         <span>Playbook</span>
+      </Link>
+
+      <Link
+        href="/lessons"
+        className={cn(
+          "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+          isLessons
+            ? "bg-secondary text-foreground shadow-sm"
+            : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+        )}
+      >
+        <Lightbulb className="h-3.5 w-3.5" />
+        <span>Lessons</span>
       </Link>
     </nav>
   );
