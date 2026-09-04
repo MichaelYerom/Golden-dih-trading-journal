@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { StrategyEntity } from "@/lib/data/strategies";
+import { StrategyEntity, StrategyUsageStat } from "@/lib/data/strategies";
 import { ConfluenceEntity } from "@/lib/data/confluences";
 import { StrategyDialog } from "./strategy-dialog";
 import { DeleteStrategyDialog } from "./delete-strategy-dialog";
@@ -14,14 +14,16 @@ import {
   Edit2,
   Trash2,
   ChevronRight,
+  TrendingUp,
 } from "lucide-react";
 
 interface StrategyCardProps {
   strategy: StrategyEntity;
   confluences: ConfluenceEntity[];
+  stats?: StrategyUsageStat;
 }
 
-export function StrategyCard({ strategy, confluences }: StrategyCardProps) {
+export function StrategyCard({ strategy, confluences, stats }: StrategyCardProps) {
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
 
@@ -75,6 +77,35 @@ export function StrategyCard({ strategy, confluences }: StrategyCardProps) {
               <ShieldAlert className="h-3.5 w-3.5 text-rose-400" />
               <span>{strategy.rulesCount} rules</span>
             </div>
+
+            {stats && (
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-secondary/60 border border-border text-[11px] text-zinc-300">
+                <TrendingUp className="h-3.5 w-3.5 text-primary" />
+                <span>
+                  {stats.totalTrades} {stats.totalTrades === 1 ? "trade" : "trades"} logged
+                </span>
+              </div>
+            )}
+
+            {stats && stats.avgMatchPercent !== null ? (
+              <div
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-[11px] font-mono-numbers font-medium ${
+                  stats.avgMatchPercent >= 80
+                    ? "bg-[#22A06B]/10 border-[#22A06B]/30 text-[#22A06B]"
+                    : stats.avgMatchPercent >= 50
+                    ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                    : "bg-[#DB5461]/10 border-[#DB5461]/30 text-[#DB5461]"
+                }`}
+                title={`Average confluence match when ${strategy.name} is used`}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>Avg Match: {stats.avgMatchPercent}%</span>
+              </div>
+            ) : stats && stats.totalTrades > 0 && strategy.confluences.length === 0 ? (
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-secondary/40 border border-border text-[11px] text-muted-foreground">
+                <span>Match: Not gradeable</span>
+              </div>
+            ) : null}
           </div>
 
           {/* Confluences list */}
@@ -118,6 +149,7 @@ export function StrategyCard({ strategy, confluences }: StrategyCardProps) {
       <StrategyDialog
         strategy={strategy}
         confluences={confluences}
+        stats={stats}
         open={isEditDialogOpen}
         onOpenChange={setIsEditDialogOpen}
       />

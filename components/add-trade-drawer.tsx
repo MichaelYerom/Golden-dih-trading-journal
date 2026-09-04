@@ -30,7 +30,15 @@ import {
 } from "lucide-react";
 import { createTradeAction, updateTradeAction } from "@/lib/actions/trade-actions";
 import { deleteTradeImageAction } from "@/lib/actions/trade-image-actions";
-import { RuleEntity, TradeEntity, TradeImageEntity, calculateTradeOutcomeR, calculateTradePnL, calculateRiskPercent } from "@/lib/data/trade-analytics";
+import {
+  RuleEntity,
+  TradeEntity,
+  TradeImageEntity,
+  calculateTradeOutcomeR,
+  calculateTradePnL,
+  calculateRiskPercent,
+  calculateConfluenceMatchWithDetails,
+} from "@/lib/data/trade-analytics";
 import { StrategyEntity } from "@/lib/data/strategies";
 import { ConfluenceEntity } from "@/lib/data/confluences";
 import { formatCurrency, formatCurrencyNeutral } from "@/lib/utils";
@@ -183,6 +191,43 @@ export function AddTradeDrawer({
       setSelectedConfluenceIds((prev) => Array.from(new Set([...prev, ...confIds])));
     }
   };
+
+  const selectedStrategy = React.useMemo(() => {
+    return strategies.find((s) => s.id === selectedStrategyId) || null;
+  }, [strategies, selectedStrategyId]);
+
+  const liveConfluenceMatch = React.useMemo(() => {
+    if (!selectedStrategy) return null;
+    const stratConfluences = selectedStrategy.confluences || [];
+    if (stratConfluences.length === 0) {
+      return {
+        isGradeable: false,
+        percent: null,
+        label: "Not Gradeable",
+        missing: [],
+        extra: [],
+      };
+    }
+
+    const selectedConfs = confluences.filter((c) =>
+      selectedConfluenceIds.includes(c.id)
+    );
+
+    const match = calculateConfluenceMatchWithDetails(
+      selectedConfs,
+      stratConfluences
+    );
+
+    if (!match) return null;
+
+    return {
+      isGradeable: true,
+      percent: match.percent,
+      label: match.label,
+      missing: match.missing,
+      extra: match.extra,
+    };
+  }, [selectedStrategy, selectedConfluenceIds, confluences]);
 
   const toggleConfluence = (confId: string) => {
     setSelectedConfluenceIds((prev) =>
@@ -773,6 +818,102 @@ export function AddTradeDrawer({
                             );
                           })}
                         </div>
+                      </div>
+                    )}
+
+                    {/* Live Confluence Match Grade Indicator */}
+                    {selectedStrategy && (
+                      <div className="pt-1">
+                        {liveConfluenceMatch && liveConfluenceMatch.isGradeable ? (
+                          <div
+                            className={`p-2.5 rounded-lg border text-xs flex flex-col gap-1.5 transition-all ${
+                              liveConfluenceMatch.percent === 100
+                                ? "border-[#22A06B]/40 bg-[#22A06B]/10 text-zinc-200"
+                                : liveConfluenceMatch.percent! > 0
+                                ? "border-amber-500/40 bg-amber-500/10 text-zinc-200"
+                                : "border-[#DB5461]/40 bg-[#DB5461]/10 text-zinc-200"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 font-medium">
+                                {liveConfluenceMatch.percent === 100 ? (
+                                  <CheckCircle2 className="h-4 w-4 text-[#22A06B] shrink-0" />
+                                ) : liveConfluenceMatch.percent! > 0 ? (
+                                  <Sparkles className="h-4 w-4 text-amber-400 shrink-0" />
+                                ) : (
+                                  <AlertCircle className="h-4 w-4 text-[#DB5461] shrink-0" />
+                                )}
+                                <span className="text-[11px] text-muted-foreground">
+                                  Playbook Match:
+                                </span>
+                                <span
+                                  className={`font-semibold font-mono-numbers px-1.5 py-0.5 rounded text-[11px] border ${
+                                    liveConfluenceMatch.percent === 100
+                                      ? "bg-[#22A06B]/20 text-[#22A06B] border-[#22A06B]/30"
+                                      : liveConfluenceMatch.percent! > 0
+                                      ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                                      : "bg-[#DB5461]/20 text-[#DB5461] border-[#DB5461]/30"
+                                  }`}
+                                >
+                                  {liveConfluenceMatch.label}
+                                </span>
+                              </div>
+
+                              <span className="text-[10px] text-muted-foreground">
+                                {selectedStrategy.confluences.length -
+                                  liveConfluenceMatch.missing.length}{" "}
+                                of {selectedStrategy.confluences.length} ideal met
+                              </span>
+                            </div>
+
+                            {/* Missing or Extra Confluences Breakdown */}
+                            <div className="space-y-1 text-[11px]">
+                              {liveConfluenceMatch.missing.length > 0 && (
+                                <div className="flex items-start gap-1 text-muted-foreground flex-wrap">
+                                  <span className="text-amber-400 font-medium">
+                                    Missing:
+                                  </span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {liveConfluenceMatch.missing.map((c) => (
+                                      <span
+                                        key={c.id}
+                                        className="px-1.5 py-0.5 rounded bg-background/60 border border-border text-zinc-300 line-through opacity-80"
+                                      >
+                                        {c.name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {liveConfluenceMatch.extra.length > 0 && (
+                                <div className="flex items-start gap-1 text-muted-foreground flex-wrap">
+                                  <span className="text-emerald-400 font-medium">
+                                    Extra:
+                                  </span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {liveConfluenceMatch.extra.map((c) => (
+                                      <span
+                                        key={c.id}
+                                        className="px-1.5 py-0.5 rounded bg-background/60 border border-border text-zinc-300"
+                                      >
+                                        +{c.name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-2 rounded-lg border border-border/60 bg-muted/20 text-[11px] text-muted-foreground flex items-center gap-1.5">
+                            <MinusCircle className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" />
+                            <span>
+                              This strategy has no ideal confluences defined in the
+                              Playbook (not gradeable).
+                            </span>
+                          </div>
+                        )}
                       </div>
                     )}
 

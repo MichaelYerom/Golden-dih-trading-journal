@@ -8,6 +8,7 @@ import {
   RuleEntity,
   TradeFilterCriteria,
   filterTrades,
+  calculateConfluenceMatchWithDetails,
 } from "@/lib/data/trade-analytics";
 import { StrategyEntity } from "@/lib/data/strategies";
 import { ConfluenceEntity } from "@/lib/data/confluences";
@@ -35,6 +36,7 @@ import {
   AlertCircle,
   MinusCircle,
   TrendingUp,
+  Sparkles,
 } from "lucide-react";
 
 interface TradeTableProps {
@@ -380,7 +382,7 @@ export function TradeTable({
                                     <span>{format(new Date(trade.entryAt), "MMM d, yyyy")}</span>
                                     {isOutOfRange && (
                                       <span
-                                        className="px-1 py-0.2 rounded text-[9px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30"
+                                        className="px-1 py-0.5 rounded text-[9px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30"
                                         title="Trade date falls outside the active session date range"
                                       >
                                         Out of range
@@ -403,7 +405,7 @@ export function TradeTable({
                                 <button
                                   type="button"
                                   onClick={() => handleOpenLightbox(trade, 0)}
-                                  className="inline-flex items-center gap-0.5 text-[10px] font-mono-numbers text-primary bg-primary/10 border border-primary/20 px-1 py-0.2 rounded hover:bg-primary/20 transition-colors"
+                                  className="inline-flex items-center gap-0.5 text-[10px] font-mono-numbers text-primary bg-primary/10 border border-primary/20 px-1 py-0.5 rounded hover:bg-primary/20 transition-colors"
                                   title={`${trade.images.length} screenshot${
                                     trade.images.length > 1 ? "s" : ""
                                   } attached (click to preview)`}
@@ -686,25 +688,163 @@ export function TradeTable({
                                   )}
                                 </div>
 
-                                {/* Confluences pills */}
-                                {trade.confluences && trade.confluences.length > 0 && (
-                                  <div className="pt-2 border-t border-border/60">
-                                    <span className="text-muted-foreground block text-[10px] uppercase font-medium mb-1.5 flex items-center gap-1">
-                                      <Layers className="h-3 w-3 text-primary" />
-                                      <span>Active Confluences ({trade.confluences.length})</span>
-                                    </span>
-                                    <div className="flex flex-wrap gap-1.5">
-                                      {trade.confluences.map((c) => (
-                                        <span
-                                          key={c.id}
-                                          className="px-2 py-0.5 rounded text-[11px] font-medium bg-primary/15 text-primary border border-primary/30"
-                                        >
-                                          {c.name}
+                                {/* Playbook Confluence Match / Active Confluences */}
+                                {(() => {
+                                  const stratEntity =
+                                    strategies.find(
+                                      (s) =>
+                                        s.id ===
+                                        (trade.strategyId || trade.strategy?.id)
+                                    ) ||
+                                    (trade.strategy
+                                      ? {
+                                          id: trade.strategy.id,
+                                          name: trade.strategy.name,
+                                          confluences:
+                                            trade.strategy.confluences || [],
+                                        }
+                                      : null);
+
+                                  const idealConfs = stratEntity?.confluences || [];
+                                  const matchDetails =
+                                    stratEntity && idealConfs.length > 0
+                                      ? calculateConfluenceMatchWithDetails(
+                                          trade.confluences || [],
+                                          idealConfs
+                                        )
+                                      : null;
+
+                                  if (stratEntity) {
+                                    return (
+                                      <div className="pt-2 border-t border-border/60 space-y-2">
+                                        <div className="flex items-center justify-between flex-wrap gap-2">
+                                          <div className="flex items-center gap-1.5 text-muted-foreground text-[10px] uppercase font-medium">
+                                            <Sparkles className="h-3 w-3 text-primary" />
+                                            <span>Playbook Confluence Match</span>
+                                          </div>
+
+                                          {idealConfs.length === 0 ? (
+                                            <span className="text-[11px] px-2 py-0.5 rounded border border-border bg-muted/30 text-muted-foreground">
+                                              Not Gradeable (No ideal confluences in strategy)
+                                            </span>
+                                          ) : matchDetails ? (
+                                            <span
+                                              className={`inline-flex items-center gap-1 font-mono-numbers text-[11px] font-semibold px-2 py-0.5 rounded border ${
+                                                matchDetails.percent === 100
+                                                  ? "text-[#22A06B] bg-[#22A06B]/10 border-[#22A06B]/30"
+                                                  : matchDetails.percent > 0
+                                                  ? "text-amber-400 bg-amber-500/10 border-amber-500/30"
+                                                  : "text-[#DB5461] bg-[#DB5461]/10 border-[#DB5461]/30"
+                                              }`}
+                                            >
+                                              {matchDetails.percent === 100 ? (
+                                                <Check className="h-3 w-3 stroke-[2.5]" />
+                                              ) : matchDetails.percent > 0 ? (
+                                                <Sparkles className="h-3 w-3" />
+                                              ) : (
+                                                <X className="h-3 w-3 stroke-[2.5]" />
+                                              )}
+                                              <span>
+                                                {matchDetails.label} Match
+                                              </span>
+                                            </span>
+                                          ) : null}
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                          {/* Used confluences */}
+                                          <div className="flex flex-wrap items-center gap-1.5">
+                                            <span className="text-[11px] text-muted-foreground mr-1">
+                                              Used ({trade.confluences?.length || 0}):
+                                            </span>
+                                            {trade.confluences &&
+                                            trade.confluences.length > 0 ? (
+                                              trade.confluences.map((c) => {
+                                                const isIdeal = idealConfs.some(
+                                                  (ic) => ic.id === c.id
+                                                );
+                                                return (
+                                                  <span
+                                                    key={c.id}
+                                                    className={`px-2 py-0.5 rounded text-[11px] font-medium border ${
+                                                      isIdeal
+                                                        ? "bg-primary/15 text-primary border-primary/30"
+                                                        : "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                                                    }`}
+                                                    title={
+                                                      isIdeal
+                                                        ? "Ideal Playbook Confluence"
+                                                        : "Extra Confluence (Beyond Ideal)"
+                                                    }
+                                                  >
+                                                    {c.name}
+                                                    {!isIdeal && idealConfs.length > 0
+                                                      ? " (+extra)"
+                                                      : ""}
+                                                  </span>
+                                                );
+                                              })
+                                            ) : (
+                                              <span className="text-[11px] text-muted-foreground/60 italic">
+                                                None selected
+                                              </span>
+                                            )}
+                                          </div>
+
+                                          {/* Missing ideal confluences */}
+                                          {matchDetails &&
+                                            matchDetails.missing.length > 0 && (
+                                              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                                <span className="text-[11px] text-amber-400/90 font-medium mr-1">
+                                                  Missing Ideal (
+                                                  {matchDetails.missing.length}):
+                                                </span>
+                                                {matchDetails.missing.map((c) => (
+                                                  <span
+                                                    key={c.id}
+                                                    className="px-2 py-0.5 rounded text-[11px] font-medium bg-secondary/60 text-muted-foreground border border-border line-through opacity-80"
+                                                    title="Required by Playbook strategy but omitted on this trade"
+                                                  >
+                                                    {c.name}
+                                                  </span>
+                                                ))}
+                                              </div>
+                                            )}
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+
+                                  // If no strategy attached but trade has confluences
+                                  if (
+                                    trade.confluences &&
+                                    trade.confluences.length > 0
+                                  ) {
+                                    return (
+                                      <div className="pt-2 border-t border-border/60">
+                                        <span className="text-muted-foreground block text-[10px] uppercase font-medium mb-1.5 flex items-center gap-1">
+                                          <Layers className="h-3 w-3 text-primary" />
+                                          <span>
+                                            Active Confluences (
+                                            {trade.confluences.length})
+                                          </span>
                                         </span>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {trade.confluences.map((c) => (
+                                            <span
+                                              key={c.id}
+                                              className="px-2 py-0.5 rounded text-[11px] font-medium bg-primary/15 text-primary border border-primary/30"
+                                            >
+                                              {c.name}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+
+                                  return null;
+                                })()}
 
                                 {/* Reason / Missed entry notes */}
                                 {trade.reasonNotes && (

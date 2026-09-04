@@ -20,6 +20,7 @@ import {
   calculateTimeAnalytics,
   calculateSetupPerformance,
   calculateCalendarAnalytics,
+  calculateSessionConfluenceStats,
 } from "./trade-analytics";
 
 // Re-export all pure types and calculations for server callers
@@ -111,7 +112,13 @@ export async function getSessionTradesAndStats(
         *,
         ruleChecks:TradeRuleCheck(*, rule:Rule(id, text)),
         images:TradeImage(*),
-        strategy:Strategy(id, name),
+        strategy:Strategy(
+          id,
+          name,
+          strategyConfluences:StrategyConfluence(
+            confluence:Confluence(*)
+          )
+        ),
         tradeConfluences:TradeConfluence(
           confluence:Confluence(*)
         )
@@ -158,10 +165,30 @@ export async function getSessionTradesAndStats(
       ? t.tradeConfluences.map((tc: any) => tc.confluence).filter(Boolean)
       : [];
 
+    const rawStratConfluences =
+      t.strategy && Array.isArray(t.strategy.strategyConfluences)
+        ? t.strategy.strategyConfluences
+            .map((sc: any) => sc.confluence)
+            .filter(Boolean)
+        : [];
+
+    const stratConfluences = rawStratConfluences.map((c: any) => ({
+      id: c.id,
+      name: c.name,
+    }));
+
     const confluences = rawConfluences.map((c: any) => ({
       id: c.id,
       name: c.name,
     }));
+
+    const strategy = t.strategy
+      ? {
+          id: t.strategy.id,
+          name: t.strategy.name,
+          confluences: stratConfluences,
+        }
+      : null;
 
     return {
       id: t.id,
@@ -189,7 +216,7 @@ export async function getSessionTradesAndStats(
       reasonNotes: t.reasonNotes ?? null,
       outcomeType,
       strategyId: t.strategyId ?? null,
-      strategy: t.strategy ? { id: t.strategy.id, name: t.strategy.name } : null,
+      strategy,
       confluences,
       drawDirection: t.drawDirection ?? null,
       setupModel: t.strategy ? t.strategy.name : (t.setupModel ?? null),
@@ -322,6 +349,7 @@ export async function getSessionTradesAndStats(
     sessionStartDate,
     sessionEndDate
   );
+  const confluenceStats = calculateSessionConfluenceStats(trades);
 
   const stats: SessionStats = {
     netPnl: Math.round(netPnl * 100) / 100,
@@ -364,6 +392,7 @@ export async function getSessionTradesAndStats(
     timeAnalytics,
     setupAnalytics,
     calendarAnalytics,
+    confluenceStats,
   };
 }
 

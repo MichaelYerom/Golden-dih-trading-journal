@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { StrategyEntity } from "@/lib/data/strategies";
+import { StrategyEntity, StrategyUsageStat } from "@/lib/data/strategies";
 import { ConfluenceEntity } from "@/lib/data/confluences";
 import { StrategyCard } from "./strategy-card";
 import { StrategyDialog } from "./strategy-dialog";
@@ -20,11 +20,13 @@ import {
 interface PlaybookViewProps {
   strategies: StrategyEntity[];
   confluences: ConfluenceEntity[];
+  strategyStats?: Record<string, StrategyUsageStat>;
 }
 
 export function PlaybookView({
   strategies,
   confluences,
+  strategyStats,
 }: PlaybookViewProps) {
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -155,6 +157,7 @@ export function PlaybookView({
               key={strat.id}
               strategy={strat}
               confluences={confluences}
+              stats={strategyStats ? strategyStats[strat.id] : undefined}
             />
           ))}
         </div>

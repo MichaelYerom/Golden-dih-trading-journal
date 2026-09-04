@@ -2,6 +2,10 @@ import crypto from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth/get-user";
 import { ConfluenceEntity } from "./confluences";
+import {
+  TradeEntity,
+  calculateSessionConfluenceStats,
+} from "./trade-analytics";
 
 export interface StrategyChecklistItemEntity {
   id: string;
@@ -358,3 +362,119 @@ export async function deleteStrategy(id: string): Promise<{ id: string }> {
 
   return { id };
 }
+
+export interface StrategyUsageStat {
+  totalTrades: number;
+  gradeableTradesCount: number;
+  avgMatchPercent: number | null;
+  perfectMatchCount: number;
+  partialMatchCount: number;
+  winRate: number | null;
+  expectancy: number | null;
+}
+
+/**
+ * Returns cross-session aggregate stats (total trades, average match %, win rate) for all strategies owned by the user.
+ */
+export async function getStrategyUsageStats(): Promise<
+  Record<string, StrategyUsageStat>
+> {
+  const supabase = await createClient();
+
+  const strategies = await getStrategies();
+
+  const { data: rawTrades, error } = await supabase
+    .from("Trade")
+    .select(`
+      id,
+      sessionId,
+      strategyId,
+      result,
+      grossPnl,
+      rMultiple,
+      outcomeType,
+      tradeConfluences:TradeConfluence(
+        confluence:Confluence(id, name)
+      )
+    `)
+    .not("strategyId", "is", null);
+
+  const result: Record<string, StrategyUsageStat> = {};
+  strategies.forEach((s) => {
+    result[s.id] = {
+      totalTrades: 0,
+      gradeableTradesCount: 0,
+      avgMatchPercent: null,
+      perfectMatchCount: 0,
+      partialMatchCount: 0,
+      winRate: null,
+      expectancy: null,
+    };
+  });
+
+  if (error || !rawTrades) {
+    return result;
+  }
+
+  const trades: TradeEntity[] = rawTrades.map((t: any) => {
+    const rawConfluences = Array.isArray(t.tradeConfluences)
+      ? t.tradeConfluences.map((tc: any) => tc.confluence).filter(Boolean)
+      : [];
+
+    return {
+      id: t.id,
+      sessionId: t.sessionId,
+      symbol: "",
+      direction: null,
+      entryAt: new Date(),
+      exitAt: new Date(),
+      entryPrice: null,
+      exitPrice: null,
+      stopLoss: null,
+      rMultiple:
+        t.rMultiple !== null && t.rMultiple !== undefined
+          ? Number(t.rMultiple)
+          : null,
+      grossPnl: Number(t.grossPnl || 0),
+      result: t.result ?? null,
+      notes: null,
+      createdAt: new Date(),
+      htfBias: null,
+      newsToday: null,
+      riskAmount: null,
+      riskPercent: null,
+      rrAchieved: null,
+      potentialRR: null,
+      lossR: null,
+      beforeTradeNotes: null,
+      reasonNotes: null,
+      outcomeType: (t.outcomeType as any) || "trade",
+      strategyId: t.strategyId,
+      confluences: rawConfluences.map((c: any) => ({
+        id: c.id,
+        name: c.name,
+      })),
+      drawDirection: null,
+      setupModel: null,
+      emotionalState: null,
+      rulesFollowed: null,
+      rr: null,
+    };
+  });
+
+  const sessionStats = calculateSessionConfluenceStats(trades, strategies);
+  sessionStats.perStrategyStats.forEach((stat) => {
+    result[stat.strategyId] = {
+      totalTrades: stat.totalTrades,
+      gradeableTradesCount: stat.gradeableTradesCount,
+      avgMatchPercent: stat.avgMatchPercent,
+      perfectMatchCount: stat.perfectMatchCount,
+      partialMatchCount: stat.partialMatchCount,
+      winRate: stat.winRate,
+      expectancy: stat.expectancy,
+    };
+  });
+
+  return result;
+}
+

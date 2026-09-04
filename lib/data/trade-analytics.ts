@@ -51,7 +51,11 @@ export interface TradeEntity {
   reasonNotes: string | null;
   outcomeType: "trade" | "missed_entry" | "no_trade";
   strategyId: string | null;
-  strategy?: { id: string; name: string } | null;
+  strategy?: {
+    id: string;
+    name: string;
+    confluences?: Array<{ id: string; name: string }>;
+  } | null;
   confluences?: Array<{ id: string; name: string }>;
   drawDirection: string | null;
   setupModel: string | null;
@@ -475,6 +479,7 @@ export interface SessionTradesAndStats {
   timeAnalytics: TimeAnalyticsResult;
   setupAnalytics: SetupAnalyticsResult;
   calendarAnalytics: CalendarAnalyticsResult;
+  confluenceStats?: SessionConfluenceStats;
 }
 
 export interface CreateTradeInput {
@@ -1798,3 +1803,298 @@ export function calculateCalendarAnalytics(
     defaultMonthKey,
   };
 }
+
+// =========================================================================
+// CONFLUENCE MATCH GRADING & AGGREGATE ANALYTICS
+// =========================================================================
+
+export interface ConfluenceMatchResult {
+  percent: number;
+  label: string; // "100%", "100%++", or "${percent}%"
+  missing: string[]; // Confluences in the ideal set but not used
+  extra: string[]; // Confluences used but not in the ideal set
+}
+
+export interface ConfluenceItem {
+  id: string;
+  name: string;
+}
+
+export interface DetailedConfluenceMatchResult {
+  percent: number;
+  label: string;
+  missing: ConfluenceItem[];
+  extra: ConfluenceItem[];
+}
+
+/**
+ * Compares confluences used on a trade against a strategy's ideal confluence set.
+ * Returns null if the strategy has no ideal confluences defined (not gradeable).
+ */
+export function calculateConfluenceMatch(
+  tradeConfluenceIds: string[] = [],
+  strategyConfluenceIds: string[] = []
+): ConfluenceMatchResult | null {
+  if (!strategyConfluenceIds || strategyConfluenceIds.length === 0) {
+    return null; // Not gradeable
+  }
+
+  const tradeSet = new Set(tradeConfluenceIds || []);
+  const strategySet = new Set(strategyConfluenceIds || []);
+
+  const intersection = strategyConfluenceIds.filter((id) => tradeSet.has(id));
+  const missing = strategyConfluenceIds.filter((id) => !tradeSet.has(id));
+  const extra = (tradeConfluenceIds || []).filter((id) => !strategySet.has(id));
+
+  const matchPercent = (intersection.length / strategyConfluenceIds.length) * 100;
+
+  if (intersection.length === strategyConfluenceIds.length) {
+    if (extra.length === 0) {
+      return {
+        percent: 100,
+        label: "100%",
+        missing: [],
+        extra: [],
+      };
+    } else {
+      return {
+        percent: 100,
+        label: "100%++",
+        missing: [],
+        extra,
+      };
+    }
+  }
+
+  const rounded = Math.round(matchPercent);
+  return {
+    percent: rounded,
+    label: `${rounded}%`,
+    missing,
+    extra,
+  };
+}
+
+/**
+ * Detailed version that resolves and returns named confluence items for rich UI displays.
+ */
+export function calculateConfluenceMatchWithDetails(
+  tradeConfluences: ConfluenceItem[] = [],
+  strategyConfluences: ConfluenceItem[] = []
+): DetailedConfluenceMatchResult | null {
+  if (!strategyConfluences || strategyConfluences.length === 0) {
+    return null;
+  }
+
+  const tradeIds = (tradeConfluences || []).map((c) => c.id);
+  const strategyIds = (strategyConfluences || []).map((c) => c.id);
+  const rawMatch = calculateConfluenceMatch(tradeIds, strategyIds);
+  if (!rawMatch) return null;
+
+  const strategyMap = new Map(strategyConfluences.map((c) => [c.id, c]));
+  const tradeMap = new Map(tradeConfluences.map((c) => [c.id, c]));
+
+  const missing = rawMatch.missing.map(
+    (id) => strategyMap.get(id) || { id, name: id }
+  );
+  const extra = rawMatch.extra.map(
+    (id) => tradeMap.get(id) || { id, name: id }
+  );
+
+  return {
+    percent: rawMatch.percent,
+    label: rawMatch.label,
+    missing,
+    extra,
+  };
+}
+
+export interface StrategyConfluenceStat {
+  strategyId: string;
+  strategyName: string;
+  totalTrades: number;
+  gradeableTradesCount: number;
+  avgMatchPercent: number | null;
+  perfectMatchCount: number; // 100% and 100%++
+  partialMatchCount: number;
+  winRate: number | null;
+  expectancy: number | null;
+  avgR: number | null;
+  totalPnl: number;
+}
+
+export interface SessionConfluenceStats {
+  avgMatchPercent: number | null;
+  gradeableTradesCount: number;
+  perfectMatchCount: number; // 100% or 100%++
+  partialMatchCount: number;
+  ungradeableTradesCount: number; // no strategy or strategy has no ideal confluences
+  perStrategyStats: StrategyConfluenceStat[];
+}
+
+/**
+ * Computes session-level (or cross-session) aggregate confluence match metrics.
+ */
+export function calculateSessionConfluenceStats(
+  trades: TradeEntity[],
+  strategies?: Array<{ id: string; name: string; confluences?: Array<{ id: string; name: string }> }>
+): SessionConfluenceStats {
+  const strategyMap = new Map<
+    string,
+    { id: string; name: string; confluences: Array<{ id: string; name: string }> }
+  >();
+
+  if (strategies) {
+    strategies.forEach((s) => {
+      strategyMap.set(s.id, {
+        id: s.id,
+        name: s.name,
+        confluences: s.confluences || [],
+      });
+    });
+  }
+
+  // Also harvest any strategy confluences embedded on trades
+  trades.forEach((t) => {
+    if (t.strategyId && t.strategy && !strategyMap.has(t.strategyId)) {
+      strategyMap.set(t.strategyId, {
+        id: t.strategyId,
+        name: t.strategy.name,
+        confluences: t.strategy.confluences || [],
+      });
+    }
+  });
+
+  let totalMatchSum = 0;
+  let gradeableTradesCount = 0;
+  let perfectMatchCount = 0;
+  let partialMatchCount = 0;
+  let ungradeableTradesCount = 0;
+
+  const perStrategyMap = new Map<
+    string,
+    {
+      strategyId: string;
+      strategyName: string;
+      trades: TradeEntity[];
+      matchPercents: number[];
+      perfectCount: number;
+      partialCount: number;
+      gradeableCount: number;
+    }
+  >();
+
+  trades.forEach((t) => {
+    const stratId = t.strategyId;
+    if (!stratId) {
+      ungradeableTradesCount++;
+      return;
+    }
+
+    const strat = strategyMap.get(stratId);
+    const stratConfluenceIds = (strat?.confluences || t.strategy?.confluences || []).map((c) => c.id);
+    const tradeConfluenceIds = (t.confluences || []).map((c) => c.id);
+
+    const match = calculateConfluenceMatch(tradeConfluenceIds, stratConfluenceIds);
+
+    const stratName = strat?.name || t.strategy?.name || "Unknown Strategy";
+    if (!perStrategyMap.has(stratId)) {
+      perStrategyMap.set(stratId, {
+        strategyId: stratId,
+        strategyName: stratName,
+        trades: [],
+        matchPercents: [],
+        perfectCount: 0,
+        partialCount: 0,
+        gradeableCount: 0,
+      });
+    }
+
+    const stratEntry = perStrategyMap.get(stratId)!;
+    stratEntry.trades.push(t);
+
+    if (match !== null) {
+      gradeableTradesCount++;
+      totalMatchSum += match.percent;
+      stratEntry.gradeableCount++;
+      stratEntry.matchPercents.push(match.percent);
+
+      if (match.percent === 100) {
+        perfectMatchCount++;
+        stratEntry.perfectCount++;
+      } else {
+        partialMatchCount++;
+        stratEntry.partialCount++;
+      }
+    } else {
+      ungradeableTradesCount++;
+    }
+  });
+
+  const avgMatchPercent =
+    gradeableTradesCount > 0
+      ? Math.round((totalMatchSum / gradeableTradesCount) * 10) / 10
+      : null;
+
+  const perStrategyStats: StrategyConfluenceStat[] = Array.from(perStrategyMap.values()).map(
+    (entry) => {
+      const stratAvgMatch =
+        entry.gradeableCount > 0
+          ? Math.round(
+              (entry.matchPercents.reduce((a, b) => a + b, 0) / entry.gradeableCount) * 10
+            ) / 10
+          : null;
+
+      const activeTrades = entry.trades.filter(
+        (t) => t.outcomeType === "trade" || !t.outcomeType
+      );
+      const winTrades = activeTrades.filter((t) => t.result === "win");
+      const evaluatedTrades = activeTrades.filter(
+        (t) => t.result === "win" || t.result === "loss" || t.result === "breakeven"
+      );
+
+      const winRate =
+        evaluatedTrades.length > 0
+          ? Math.round((winTrades.length / evaluatedTrades.length) * 1000) / 10
+          : null;
+
+      const totalPnl = entry.trades.reduce((acc, t) => acc + (t.grossPnl || 0), 0);
+
+      const tradesWithR = activeTrades.filter((t) => t.rMultiple !== null);
+      const avgR =
+        tradesWithR.length > 0
+          ? Math.round(
+              (tradesWithR.reduce((acc, t) => acc + Number(t.rMultiple), 0) /
+                tradesWithR.length) *
+                100
+            ) / 100
+          : null;
+
+      const expectancy = calculateExpectancy(activeTrades).expectancy;
+
+      return {
+        strategyId: entry.strategyId,
+        strategyName: entry.strategyName,
+        totalTrades: entry.trades.length,
+        gradeableTradesCount: entry.gradeableCount,
+        avgMatchPercent: stratAvgMatch,
+        perfectMatchCount: entry.perfectCount,
+        partialMatchCount: entry.partialCount,
+        winRate,
+        expectancy,
+        avgR,
+        totalPnl,
+      };
+    }
+  );
+
+  return {
+    avgMatchPercent,
+    gradeableTradesCount,
+    perfectMatchCount,
+    partialMatchCount,
+    ungradeableTradesCount,
+    perStrategyStats,
+  };
+}
+

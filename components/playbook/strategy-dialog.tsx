@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   StrategyDetailEntity,
   StrategyEntity,
+  StrategyUsageStat,
 } from "@/lib/data/strategies";
 import { ConfluenceEntity } from "@/lib/data/confluences";
 import {
@@ -35,6 +36,7 @@ import {
 interface StrategyDialogProps {
   strategy?: StrategyDetailEntity | StrategyEntity | null;
   confluences: ConfluenceEntity[];
+  stats?: StrategyUsageStat;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved?: () => void;
@@ -43,6 +45,7 @@ interface StrategyDialogProps {
 export function StrategyDialog({
   strategy,
   confluences,
+  stats,
   open,
   onOpenChange,
   onSaved,
@@ -228,6 +231,43 @@ export function StrategyDialog({
         )}
 
         <div className="space-y-4 overflow-y-auto pr-1 flex-1">
+          {/* Lifetime Usage & Match Metrics (when editing) */}
+          {isEditing && stats && (
+            <div className="grid grid-cols-2 gap-2 p-3 rounded-md bg-secondary/40 border border-border text-xs">
+              <div>
+                <span className="text-[11px] text-muted-foreground block">
+                  Trades Using Strategy
+                </span>
+                <span className="font-semibold text-foreground font-mono-numbers">
+                  {stats.totalTrades} {stats.totalTrades === 1 ? "trade" : "trades"}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-[11px] text-muted-foreground block">
+                  Avg. Confluence Match
+                </span>
+                {stats.avgMatchPercent !== null ? (
+                  <span
+                    className={`font-semibold font-mono-numbers ${
+                      stats.avgMatchPercent >= 80
+                        ? "text-[#22A06B]"
+                        : stats.avgMatchPercent >= 50
+                        ? "text-amber-400"
+                        : "text-[#DB5461]"
+                    }`}
+                  >
+                    {stats.avgMatchPercent}%
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground italic">
+                    Not gradeable
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Strategy Name & Description */}
           <div className="space-y-3 p-3 rounded-md bg-card border border-border">
             <div>
