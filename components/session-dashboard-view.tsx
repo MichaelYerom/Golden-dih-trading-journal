@@ -223,17 +223,17 @@ export function SessionDashboardView({
       {activeTab === "overview" ? (
         <div className="space-y-5">
           {/* STAT CARDS GRID */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8 gap-3 sm:gap-3.5 lg:gap-4">
             {/* Card 1: Net P&L */}
-            <Card className="border border-border bg-card">
-              <CardHeader className="p-3.5 pb-1">
-                <CardTitle className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+            <Card className="border border-border bg-card flex flex-col justify-between h-full min-w-0 overflow-hidden shadow-sm">
+              <CardHeader className="p-3 sm:p-3.5 pb-1 sm:pb-1">
+                <CardTitle className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground uppercase tracking-wider truncate" title="Net P&L">
                   Net P&L
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-3.5 pt-0">
+              <CardContent className="p-3 sm:p-3.5 pt-0 sm:pt-0 flex flex-col justify-between flex-1 min-w-0">
                 <div
-                  className={`text-xl font-semibold font-mono-numbers ${
+                  className={`text-lg sm:text-xl font-bold font-mono-numbers truncate ${
                     isProfit
                       ? "text-[#22A06B]"
                       : isLoss
@@ -243,7 +243,7 @@ export function SessionDashboardView({
                 >
                   {formatCurrency(stats.netPnl)}
                 </div>
-                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5 font-mono-numbers truncate">
+                <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 font-mono-numbers truncate">
                   <span
                     className={
                       stats.netPnlPercent > 0
@@ -256,23 +256,26 @@ export function SessionDashboardView({
                     {stats.netPnlPercent >= 0 ? "+" : ""}
                     {stats.netPnlPercent.toFixed(1)}%
                   </span>
-                  <span>bal: {formatCurrencyNeutral(stats.currentBalance)}</span>
+                  <span>·</span>
+                  <span className="truncate" title={`Current Balance: ${formatCurrencyNeutral(stats.currentBalance)}`}>
+                    bal: {formatCurrencyNeutral(stats.currentBalance)}
+                  </span>
                 </div>
               </CardContent>
             </Card>
 
             {/* Card 2: Win Rate */}
-            <Card className="border border-border bg-card">
-              <CardHeader className="p-3.5 pb-1">
-                <CardTitle className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+            <Card className="border border-border bg-card flex flex-col justify-between h-full min-w-0 overflow-hidden shadow-sm">
+              <CardHeader className="p-3 sm:p-3.5 pb-1 sm:pb-1">
+                <CardTitle className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground uppercase tracking-wider truncate" title="Trade Win %">
                   Trade Win %
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-3.5 pt-0">
-                <div className="text-xl font-semibold font-mono-numbers text-foreground">
+              <CardContent className="p-3 sm:p-3.5 pt-0 sm:pt-0 flex flex-col justify-between flex-1 min-w-0">
+                <div className="text-lg sm:text-xl font-bold font-mono-numbers text-foreground truncate">
                   {stats.totalTrades > 0 ? formatPercent(stats.winRate) : "—"}
                 </div>
-                <div className="text-[11px] text-muted-foreground mt-0.5 font-mono-numbers truncate">
+                <div className="text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 font-mono-numbers truncate">
                   {stats.winCount}W / {stats.lossCount}L
                   {stats.breakevenCount > 0 ? ` / ${stats.breakevenCount}BE` : ""}
                 </div>
@@ -280,15 +283,15 @@ export function SessionDashboardView({
             </Card>
 
             {/* Card 3: Expectancy */}
-            <Card className="border border-border bg-card">
-              <CardHeader className="p-3.5 pb-1">
-                <CardTitle className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+            <Card className="border border-border bg-card flex flex-col justify-between h-full min-w-0 overflow-hidden shadow-sm">
+              <CardHeader className="p-3 sm:p-3.5 pb-1 sm:pb-1">
+                <CardTitle className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground uppercase tracking-wider truncate" title="Expectancy">
                   Expectancy
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-3.5 pt-0">
+              <CardContent className="p-3 sm:p-3.5 pt-0 sm:pt-0 flex flex-col justify-between flex-1 min-w-0">
                 <div
-                  className={`text-xl font-semibold font-mono-numbers ${
+                  className={`text-lg sm:text-xl font-bold font-mono-numbers truncate ${
                     stats.expectancy !== null && stats.expectancy > 0
                       ? "text-[#22A06B]"
                       : stats.expectancy !== null && stats.expectancy < 0
@@ -300,7 +303,7 @@ export function SessionDashboardView({
                     ? `${stats.expectancy > 0 ? "+" : ""}${stats.expectancy.toFixed(2)}R`
                     : "—"}
                 </div>
-                <div className="text-[11px] text-muted-foreground mt-0.5 font-mono-numbers truncate">
+                <div className="text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 font-mono-numbers truncate">
                   {stats.expectancy !== null
                     ? `${stats.expectancy > 0 ? "+" : ""}${stats.expectancy.toFixed(2)}R per trade`
                     : "Requires stop loss"}
@@ -309,21 +312,21 @@ export function SessionDashboardView({
             </Card>
 
             {/* Card 4: Profit Factor */}
-            <Card className="border border-border bg-card">
-              <CardHeader className="p-3.5 pb-1">
-                <CardTitle className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+            <Card className="border border-border bg-card flex flex-col justify-between h-full min-w-0 overflow-hidden shadow-sm">
+              <CardHeader className="p-3 sm:p-3.5 pb-1 sm:pb-1">
+                <CardTitle className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground uppercase tracking-wider truncate" title="Profit Factor">
                   Profit Factor
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-3.5 pt-0">
-                <div className="text-xl font-semibold font-mono-numbers text-foreground">
+              <CardContent className="p-3 sm:p-3.5 pt-0 sm:pt-0 flex flex-col justify-between flex-1 min-w-0">
+                <div className="text-lg sm:text-xl font-bold font-mono-numbers text-foreground truncate">
                   {stats.totalTrades > 0
                     ? stats.profitFactor === Infinity
                       ? "∞"
                       : stats.profitFactor.toFixed(2)
                     : "—"}
                 </div>
-                <div className="text-[11px] text-muted-foreground mt-0.5 font-mono-numbers truncate">
+                <div className="text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 font-mono-numbers truncate">
                   +${Math.round(stats.totalGains).toLocaleString()} / -$
                   {Math.round(stats.totalLosses).toLocaleString()}
                 </div>
@@ -331,15 +334,15 @@ export function SessionDashboardView({
             </Card>
 
             {/* Card 5: Rule Compliance */}
-            <Card className="border border-border bg-card">
-              <CardHeader className="p-3.5 pb-1">
-                <CardTitle className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+            <Card className="border border-border bg-card flex flex-col justify-between h-full min-w-0 overflow-hidden shadow-sm">
+              <CardHeader className="p-3 sm:p-3.5 pb-1 sm:pb-1">
+                <CardTitle className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground uppercase tracking-wider truncate" title="Rule Compliance">
                   Rule Compliance
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-3.5 pt-0">
+              <CardContent className="p-3 sm:p-3.5 pt-0 sm:pt-0 flex flex-col justify-between flex-1 min-w-0">
                 <div
-                  className={`text-xl font-semibold font-mono-numbers ${
+                  className={`text-lg sm:text-xl font-bold font-mono-numbers truncate ${
                     compliance.overallComplianceRate !== null &&
                     compliance.overallComplianceRate >= 80
                       ? "text-[#22A06B]"
@@ -353,7 +356,7 @@ export function SessionDashboardView({
                     ? `${compliance.overallComplianceRate.toFixed(0)}%`
                     : "—"}
                 </div>
-                <div className="text-[11px] text-muted-foreground mt-0.5 font-mono-numbers truncate">
+                <div className="text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 font-mono-numbers truncate">
                   {compliance.totalEvaluatedTrades > 0
                     ? `${compliance.followedTradesCount} / ${compliance.totalEvaluatedTrades} compliant`
                     : rules.length > 0
@@ -364,15 +367,15 @@ export function SessionDashboardView({
             </Card>
 
             {/* Card 6: Max Drawdown */}
-            <Card className="border border-border bg-card">
-              <CardHeader className="p-3.5 pb-1">
-                <CardTitle className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+            <Card className="border border-border bg-card flex flex-col justify-between h-full min-w-0 overflow-hidden shadow-sm">
+              <CardHeader className="p-3 sm:p-3.5 pb-1 sm:pb-1">
+                <CardTitle className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground uppercase tracking-wider truncate" title="Max Drawdown">
                   Max Drawdown
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-3.5 pt-0">
+              <CardContent className="p-3 sm:p-3.5 pt-0 sm:pt-0 flex flex-col justify-between flex-1 min-w-0">
                 <div
-                  className={`text-xl font-semibold font-mono-numbers ${
+                  className={`text-lg sm:text-xl font-bold font-mono-numbers truncate ${
                     stats.maxDrawdownAmount > 0
                       ? "text-[#DB5461]"
                       : "text-foreground"
@@ -382,7 +385,7 @@ export function SessionDashboardView({
                     ? `-${formatCurrencyNeutral(stats.maxDrawdownAmount)}`
                     : "$0.00"}
                 </div>
-                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5 font-mono-numbers truncate">
+                <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 font-mono-numbers truncate">
                   <span
                     className={
                       stats.maxDrawdownPercent > 0
@@ -394,7 +397,8 @@ export function SessionDashboardView({
                       ? `-${stats.maxDrawdownPercent.toFixed(1)}%`
                       : "0.0%"}
                   </span>
-                  <span>
+                  <span>·</span>
+                  <span className="truncate">
                     {stats.recoveryTradeCount !== null
                       ? `Rec: ${stats.recoveryTradeCount} tr`
                       : stats.maxDrawdownAmount > 0
@@ -406,27 +410,27 @@ export function SessionDashboardView({
             </Card>
 
             {/* Card 7: Avg Win / Loss */}
-            <Card className="border border-border bg-card">
-              <CardHeader className="p-3.5 pb-1">
-                <CardTitle className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+            <Card className="border border-border bg-card flex flex-col justify-between h-full min-w-0 overflow-hidden shadow-sm">
+              <CardHeader className="p-3 sm:p-3.5 pb-1 sm:pb-1">
+                <CardTitle className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground uppercase tracking-wider truncate" title="Avg Win / Loss">
                   Avg Win / Loss
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-3.5 pt-0">
-                <div className="flex items-baseline gap-1.5 font-mono-numbers">
-                  <span className="text-sm font-semibold text-[#22A06B]">
+              <CardContent className="p-3 sm:p-3.5 pt-0 sm:pt-0 flex flex-col justify-between flex-1 min-w-0">
+                <div className="flex items-baseline gap-1 font-mono-numbers truncate">
+                  <span className="text-sm sm:text-base font-bold text-[#22A06B] truncate">
                     {stats.winCount > 0
                       ? `+$${Math.round(stats.avgWin).toLocaleString()}`
                       : "$0"}
                   </span>
-                  <span className="text-muted-foreground">/</span>
-                  <span className="text-sm font-semibold text-[#DB5461]">
+                  <span className="text-muted-foreground text-xs">/</span>
+                  <span className="text-sm sm:text-base font-bold text-[#DB5461] truncate">
                     {stats.lossCount > 0
                       ? `-$${Math.round(stats.avgLoss).toLocaleString()}`
                       : "$0"}
                   </span>
                 </div>
-                <div className="text-[11px] text-muted-foreground mt-0.5 font-mono-numbers truncate">
+                <div className="text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 font-mono-numbers truncate">
                   Payoff:{" "}
                   {stats.avgLoss > 0
                     ? (stats.avgWin / stats.avgLoss).toFixed(2)
@@ -437,15 +441,15 @@ export function SessionDashboardView({
             </Card>
 
             {/* Card 8: Current Streak */}
-            <Card className="border border-border bg-card">
-              <CardHeader className="p-3.5 pb-1">
-                <CardTitle className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+            <Card className="border border-border bg-card flex flex-col justify-between h-full min-w-0 overflow-hidden shadow-sm">
+              <CardHeader className="p-3 sm:p-3.5 pb-1 sm:pb-1">
+                <CardTitle className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground uppercase tracking-wider truncate" title="Current Streak">
                   Streak
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-3.5 pt-0">
+              <CardContent className="p-3 sm:p-3.5 pt-0 sm:pt-0 flex flex-col justify-between flex-1 min-w-0">
                 <div
-                  className={`text-xl font-semibold font-mono-numbers ${
+                  className={`text-lg sm:text-xl font-bold font-mono-numbers truncate ${
                     stats.currentStreak > 0
                       ? "text-[#22A06B]"
                       : stats.currentStreak < 0
@@ -460,7 +464,7 @@ export function SessionDashboardView({
                     : "—"}
                 </div>
                 <div
-                  className="text-[11px] text-muted-foreground mt-0.5 font-mono-numbers truncate"
+                  className="text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 font-mono-numbers truncate"
                   title={`Longest Win: ${stats.longestWinStreak}W | Longest Loss: ${stats.longestLossStreak}L`}
                 >
                   Best: {stats.longestWinStreak}W | Worst:{" "}
@@ -536,7 +540,7 @@ export function SessionDashboardView({
 
           {/* TRADE LOG TABLE */}
           <div className="space-y-2.5">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
               <div>
                 <h2 className="text-sm font-semibold tracking-tight text-foreground">
                   Trade View ({trades.length})
@@ -545,18 +549,20 @@ export function SessionDashboardView({
                   Individual executions and backtest log observations.
                 </p>
               </div>
-              <AddTradeDrawer
-                sessionId={session.id}
-                defaultSymbol={session.instrument}
-                defaultDate={session.periodStart.toISOString()}
-                sessionPeriodStart={session.periodStart}
-                sessionPeriodEnd={session.periodEnd}
-                sessionRules={rules}
-                strategies={strategies}
-                confluences={confluences}
-                sessionStartingBalance={session.startingBalance}
-                sessionCurrentBalance={stats.currentBalance}
-              />
+              <div className="self-start sm:self-center shrink-0">
+                <AddTradeDrawer
+                  sessionId={session.id}
+                  defaultSymbol={session.instrument}
+                  defaultDate={session.periodStart.toISOString()}
+                  sessionPeriodStart={session.periodStart}
+                  sessionPeriodEnd={session.periodEnd}
+                  sessionRules={rules}
+                  strategies={strategies}
+                  confluences={confluences}
+                  sessionStartingBalance={session.startingBalance}
+                  sessionCurrentBalance={stats.currentBalance}
+                />
+              </div>
             </div>
 
             <TradeTable

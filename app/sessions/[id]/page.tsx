@@ -7,9 +7,10 @@ import { getConfluences } from "@/lib/data/confluences";
 import { Badge } from "@/components/ui/badge";
 import { AddTradeDrawer } from "@/components/add-trade-drawer";
 import { SessionRulesDialog } from "@/components/session-rules-dialog";
+import { EditSessionDialog } from "@/components/edit-session-dialog";
 import { SessionDashboardView } from "@/components/session-dashboard-view";
 import { formatCurrencyNeutral } from "@/lib/utils";
-import { Calendar, Layers, Wallet } from "lucide-react";
+import { Calendar, Layers, Wallet, Pencil } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -63,9 +64,9 @@ export default async function SessionPage({ params }: SessionPageProps) {
   return (
     <div className="space-y-5">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 pb-3.5 border-b border-border">
         <div className="space-y-1">
-          <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-xl font-bold tracking-tight text-foreground">
               {session.name}
             </h1>
@@ -80,23 +81,38 @@ export default async function SessionPage({ params }: SessionPageProps) {
                   ? "completed"
                   : "archived"
               }
-              className="text-[11px] px-2 py-0.5"
+              className="text-[11px] px-2 py-0.5 capitalize"
             >
               {session.status}
             </Badge>
+
+            <EditSessionDialog
+              session={session}
+              trades={trades}
+              trigger={
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center h-6 w-6 rounded-md border border-border/80 bg-secondary/50 hover:bg-secondary hover:text-foreground text-muted-foreground transition-all duration-150 shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  title="Edit session details"
+                  aria-label="Edit session details"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+              }
+            />
           </div>
 
-          <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap pt-0.5">
+          <div className="flex items-center gap-x-3.5 gap-y-1 text-xs text-muted-foreground flex-wrap pt-0.5">
             <span className="flex items-center gap-1.5">
-              <Calendar className="h-3.5 w-3.5 text-muted-foreground/80" />
+              <Calendar className="h-3.5 w-3.5 text-muted-foreground/80 shrink-0" />
               <span>{formattedPeriod}</span>
             </span>
             <span className="flex items-center gap-1.5">
-              <Wallet className="h-3.5 w-3.5 text-muted-foreground/80" />
+              <Wallet className="h-3.5 w-3.5 text-muted-foreground/80 shrink-0" />
               <span>Starting: {formatCurrencyNeutral(session.startingBalance)}</span>
             </span>
             <span className="flex items-center gap-1.5">
-              <Layers className="h-3.5 w-3.5 text-muted-foreground/80" />
+              <Layers className="h-3.5 w-3.5 text-muted-foreground/80 shrink-0" />
               <span>
                 {stats.totalTrades} {stats.totalTrades === 1 ? "trade" : "trades"} logged
               </span>
@@ -105,7 +121,7 @@ export default async function SessionPage({ params }: SessionPageProps) {
         </div>
 
         {/* Action Buttons: Manage Rules & Add Trade */}
-        <div className="flex items-center gap-2.5 self-start sm:self-center flex-wrap">
+        <div className="flex items-center gap-2.5 self-start sm:self-center flex-wrap shrink-0">
           <SessionRulesDialog sessionId={session.id} rules={rules} />
           <AddTradeDrawer
             sessionId={session.id}

@@ -484,8 +484,10 @@ export function AddTradeDrawer({
   return (
     <>
       {trigger ? (
-        <div onClick={() => setOpen(true)}>{trigger}</div>
-      ) : (
+        <span onClick={() => setOpen(true)} className="inline-flex items-center cursor-pointer">
+          {trigger}
+        </span>
+      ) : !isControlled ? (
         <Button
           onClick={() => setOpen(true)}
           size="sm"
@@ -494,7 +496,7 @@ export function AddTradeDrawer({
           <Plus className="h-3.5 w-3.5" />
           Log Trade
         </Button>
-      )}
+      ) : null}
 
       <Sheet open={open} onOpenChange={setOpen}>
         <div className="flex flex-col h-full bg-card text-card-foreground">

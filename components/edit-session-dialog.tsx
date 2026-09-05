@@ -111,10 +111,10 @@ export function EditSessionDialog({
   return (
     <>
       {trigger ? (
-        <div onClick={() => setOpen(true)} className="cursor-pointer">
+        <span onClick={() => setOpen(true)} className="inline-flex items-center cursor-pointer">
           {trigger}
-        </div>
-      ) : (
+        </span>
+      ) : !isControlled ? (
         <Button
           variant="outline"
           size="sm"
@@ -124,7 +124,7 @@ export function EditSessionDialog({
           <Settings className="h-3.5 w-3.5" />
           <span>Edit Session</span>
         </Button>
-      )}
+      ) : null}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogHeader>
