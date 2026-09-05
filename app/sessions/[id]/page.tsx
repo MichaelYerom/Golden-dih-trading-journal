@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { format } from "date-fns";
 import { getSessionById } from "@/lib/data/sessions";
 import { getSessionTradesAndStats } from "@/lib/data/trades";
@@ -7,11 +6,10 @@ import { getStrategies } from "@/lib/data/strategies";
 import { getConfluences } from "@/lib/data/confluences";
 import { Badge } from "@/components/ui/badge";
 import { AddTradeDrawer } from "@/components/add-trade-drawer";
-import { SessionSettingsMenu } from "@/components/session-settings-menu";
 import { SessionRulesDialog } from "@/components/session-rules-dialog";
 import { SessionDashboardView } from "@/components/session-dashboard-view";
 import { formatCurrencyNeutral } from "@/lib/utils";
-import { ChevronLeft, Calendar, Layers, Wallet } from "lucide-react";
+import { Calendar, Layers, Wallet } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -64,22 +62,14 @@ export default async function SessionPage({ params }: SessionPageProps) {
 
   return (
     <div className="space-y-5">
-      {/* Top Header & Navigation */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-border">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
         <div className="space-y-1">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mb-0.5"
-          >
-            <ChevronLeft className="h-3.5 w-3.5" />
-            <span>Back to Sessions</span>
-          </Link>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-lg font-semibold tracking-tight text-foreground">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-xl font-bold tracking-tight text-foreground">
               {session.name}
             </h1>
-            <Badge variant="outline" className="font-mono-numbers font-medium text-[11px]">
+            <Badge variant="outline" className="font-mono-numbers font-medium text-[11px] px-2 py-0.5">
               {session.instrument}
             </Badge>
             <Badge
@@ -90,49 +80,32 @@ export default async function SessionPage({ params }: SessionPageProps) {
                   ? "completed"
                   : "archived"
               }
-              className="text-[11px]"
+              className="text-[11px] px-2 py-0.5"
             >
               {session.status}
             </Badge>
           </div>
 
           <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap pt-0.5">
-            <span className="flex items-center gap-1">
-              <Calendar className="h-3 w-3" />
-              {formattedPeriod}
+            <span className="flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5 text-muted-foreground/80" />
+              <span>{formattedPeriod}</span>
             </span>
-            <span className="flex items-center gap-1">
-              <Wallet className="h-3 w-3" />
-              Starting: {formatCurrencyNeutral(session.startingBalance)}
+            <span className="flex items-center gap-1.5">
+              <Wallet className="h-3.5 w-3.5 text-muted-foreground/80" />
+              <span>Starting: {formatCurrencyNeutral(session.startingBalance)}</span>
             </span>
-            <span className="flex items-center gap-1">
-              <Layers className="h-3 w-3" />
-              {stats.totalTrades} {stats.totalTrades === 1 ? "trade" : "trades"} logged
+            <span className="flex items-center gap-1.5">
+              <Layers className="h-3.5 w-3.5 text-muted-foreground/80" />
+              <span>
+                {stats.totalTrades} {stats.totalTrades === 1 ? "trade" : "trades"} logged
+              </span>
             </span>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2 self-start md:self-center flex-wrap">
-          <SessionSettingsMenu
-            session={{
-              id: session.id,
-              name: session.name,
-              instrument: session.instrument,
-              startingBalance: session.startingBalance,
-              periodStart: session.periodStart,
-              periodEnd: session.periodEnd,
-            }}
-            trades={trades}
-            stats={stats}
-            equityCurve={equityCurve}
-            rDistribution={rDistribution}
-            drawdownDetails={drawdownDetails}
-            rules={rules}
-            compliance={compliance}
-            timeAnalytics={timeAnalytics}
-            setupAnalytics={setupAnalytics}
-          />
+        {/* Action Buttons: Manage Rules & Add Trade */}
+        <div className="flex items-center gap-2.5 self-start sm:self-center flex-wrap">
           <SessionRulesDialog sessionId={session.id} rules={rules} />
           <AddTradeDrawer
             sessionId={session.id}
@@ -153,10 +126,12 @@ export default async function SessionPage({ params }: SessionPageProps) {
       <SessionDashboardView
         session={{
           id: session.id,
+          name: session.name,
           instrument: session.instrument,
           startingBalance: session.startingBalance,
           periodStart: session.periodStart,
           periodEnd: session.periodEnd,
+          status: session.status,
         }}
         trades={trades}
         stats={stats}
@@ -174,4 +149,3 @@ export default async function SessionPage({ params }: SessionPageProps) {
     </div>
   );
 }
-

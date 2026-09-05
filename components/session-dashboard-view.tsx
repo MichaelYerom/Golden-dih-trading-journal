@@ -11,6 +11,7 @@ import { RuleComplianceCard } from "@/components/rule-compliance-card";
 import { TimeAnalyticsView } from "@/components/time-analytics-view";
 import { SetupLeaderboardView } from "@/components/setup-leaderboard-view";
 import { CalendarHeatmapView } from "@/components/calendar-heatmap-view";
+import { useSessionNav } from "@/components/session-nav-context";
 import {
   TradeEntity,
   SessionStats,
@@ -37,10 +38,12 @@ import { ConfluenceEntity } from "@/lib/data/confluences";
 interface SessionDashboardViewProps {
   session: {
     id: string;
+    name?: string | null;
     instrument: string;
     startingBalance: number;
     periodStart: Date;
     periodEnd: Date;
+    status?: string;
   };
   trades: TradeEntity[];
   stats: SessionStats;
@@ -74,10 +77,44 @@ export function SessionDashboardView({
   const router = useRouter();
   const pathname = usePathname();
 
-  const [activeTab, setActiveTab] = React.useState<
-    "overview" | "time" | "setups" | "calendar"
-  >("overview");
+  const { activeTab, setActiveTab, setSessionData } = useSessionNav();
   const [selectedSetupFilter, setSelectedSetupFilter] = React.useState<string | null>(null);
+
+  // Sync session data with the unified sidebar context
+  React.useEffect(() => {
+    setSessionData({
+      session,
+      trades,
+      stats,
+      equityCurve,
+      rDistribution,
+      drawdownDetails,
+      rules,
+      compliance,
+      timeAnalytics,
+      setupAnalytics,
+      timeCount: timeAnalytics.totalTradesEvaluated,
+      setupsCount: setupAnalytics.totalSetupsCount,
+      calendarDays: calendarAnalytics.dayStreaks.totalTradingDays,
+    });
+
+    return () => {
+      setSessionData(null);
+    };
+  }, [
+    session,
+    trades,
+    stats,
+    equityCurve,
+    rDistribution,
+    drawdownDetails,
+    rules,
+    compliance,
+    timeAnalytics,
+    setupAnalytics,
+    calendarAnalytics,
+    setSessionData,
+  ]);
 
   const isProfit = stats.netPnl > 0;
   const isLoss = stats.netPnl < 0;
@@ -95,12 +132,12 @@ export function SessionDashboardView({
 
   return (
     <div className="space-y-5">
-      {/* TAB NAVIGATION HEADER */}
-      <div className="flex items-center gap-2 border-b border-border pb-2.5 overflow-x-auto">
+      {/* MOBILE TAB BAR (screens < md only - desktop tabs are in the single left sidebar) */}
+      <div className="md:hidden flex items-center gap-1.5 border-b border-border pb-2.5 overflow-x-auto">
         <button
           type="button"
           onClick={() => setActiveTab("overview")}
-          className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-all ${
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-all ${
             activeTab === "overview"
               ? "bg-primary text-primary-foreground shadow-sm"
               : "bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80"
@@ -113,7 +150,7 @@ export function SessionDashboardView({
         <button
           type="button"
           onClick={() => setActiveTab("time")}
-          className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-all ${
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-all ${
             activeTab === "time"
               ? "bg-primary text-primary-foreground shadow-sm"
               : "bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80"
@@ -137,7 +174,7 @@ export function SessionDashboardView({
         <button
           type="button"
           onClick={() => setActiveTab("setups")}
-          className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-all ${
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-all ${
             activeTab === "setups"
               ? "bg-primary text-primary-foreground shadow-sm"
               : "bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80"
@@ -161,7 +198,7 @@ export function SessionDashboardView({
         <button
           type="button"
           onClick={() => setActiveTab("calendar")}
-          className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-all ${
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-all ${
             activeTab === "calendar"
               ? "bg-primary text-primary-foreground shadow-sm"
               : "bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80"
