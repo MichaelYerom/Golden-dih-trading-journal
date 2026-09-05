@@ -328,7 +328,7 @@ export function TimeAnalyticsView({ timeAnalytics }: TimeAnalyticsViewProps) {
                   </Badge>
                 </div>
                 <div className="text-xs font-mono-numbers mt-0.5 text-[#22A06B] font-semibold">
-                  +{formatCurrency(bestHour.totalPnl)} P&L
+                  {formatCurrency(bestHour.totalPnl)} P&L
                 </div>
               </div>
             ) : (
@@ -386,7 +386,7 @@ export function TimeAnalyticsView({ timeAnalytics }: TimeAnalyticsViewProps) {
                   </Badge>
                 </div>
                 <div className="text-xs font-mono-numbers mt-0.5 text-[#22A06B] font-semibold">
-                  +{formatCurrency(bestDay.totalPnl)} P&L
+                  {formatCurrency(bestDay.totalPnl)} P&L
                 </div>
               </div>
             ) : (

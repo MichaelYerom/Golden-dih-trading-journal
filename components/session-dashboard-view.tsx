@@ -342,8 +342,8 @@ export function SessionDashboardView({
                   }`}
                 >
                   {stats.maxDrawdownAmount > 0
-                    ? `-${formatCurrency(stats.maxDrawdownAmount)}`
-                    : "$0"}
+                    ? `-${formatCurrencyNeutral(stats.maxDrawdownAmount)}`
+                    : "$0.00"}
                 </div>
                 <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5 font-mono-numbers truncate">
                   <span

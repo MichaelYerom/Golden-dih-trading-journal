@@ -88,7 +88,7 @@ export function LessonCard({ lesson, onOpenLightbox }: LessonCardProps) {
                 </span>
                 {lesson.grossPnl > 0 && (
                   <span className="text-[11px] font-mono-numbers text-[#22A06B] font-semibold">
-                    +{formatCurrency(lesson.grossPnl)}
+                    {formatCurrency(lesson.grossPnl)}
                   </span>
                 )}
               </div>

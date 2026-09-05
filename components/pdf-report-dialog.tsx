@@ -179,7 +179,7 @@ export function PdfReportDialog({
                 isNetProfit ? "text-[#22A06B]" : isNetLoss ? "text-[#DB5461]" : "text-foreground"
               }`}
             >
-              {isNetProfit ? `+${formatCurrency(stats.netPnl)}` : formatCurrency(stats.netPnl)}
+              {formatCurrency(stats.netPnl)}
             </div>
           </div>
 

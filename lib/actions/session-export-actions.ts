@@ -25,30 +25,39 @@ export interface SessionExportSnapshot {
   trades: {
     id: string;
     symbol: string;
-    direction: string;
+    direction?: string | null;
     entryAt: string;
     exitAt: string;
-    entryPrice: number;
-    exitPrice: number;
-    stopLoss: number | null;
-    rMultiple: number | null;
-    grossPnl: number;
-    result: string;
-    notes: string | null;
-    htfBias: string | null;
-    newsToday: string | null;
-    riskPercent: number | null;
-    drawDirection: string | null;
-    setupModel: string | null;
-    emotionalState: string | null;
-    rulesFollowed: boolean | null;
-    rr: string | null;
+    entryPrice?: number | null;
+    exitPrice?: number | null;
+    stopLoss?: number | null;
+    rMultiple?: number | null;
+    grossPnl?: number;
+    result?: string | null;
+    notes?: string | null;
+    htfBias?: string | null;
+    newsToday?: string | null;
+    riskAmount?: number | null;
+    riskPercent?: number | null;
+    rrAchieved?: number | null;
+    potentialRR?: number | null;
+    lossR?: number | null;
+    beforeTradeNotes?: string | null;
+    reasonNotes?: string | null;
+    outcomeType?: "trade" | "missed_entry" | "no_trade" | null;
+    strategyId?: string | null;
+    drawDirection?: string | null;
+    setupModel?: string | null;
+    emotionalState?: string | null;
+    rulesFollowed?: boolean | null;
+    rr?: string | null;
     ruleChecks: {
       ruleId: string;
       followed: boolean;
     }[];
     images: {
       label: string | null;
+      role?: "before_trade" | "outcome";
       filename: string;
       mimeType: string;
       base64Data: string;
@@ -141,24 +150,32 @@ export async function exportSessionSnapshotAction(sessionId: string): Promise<{
         return {
           id: trade.id,
           symbol: trade.symbol,
-          direction: trade.direction,
+          direction: trade.direction ?? null,
           entryAt: new Date(trade.entryAt).toISOString(),
           exitAt: new Date(trade.exitAt).toISOString(),
-          entryPrice: Number(trade.entryPrice),
-          exitPrice: Number(trade.exitPrice),
+          entryPrice: trade.entryPrice !== null && trade.entryPrice !== undefined ? Number(trade.entryPrice) : null,
+          exitPrice: trade.exitPrice !== null && trade.exitPrice !== undefined ? Number(trade.exitPrice) : null,
           stopLoss: trade.stopLoss !== null && trade.stopLoss !== undefined ? Number(trade.stopLoss) : null,
           rMultiple: trade.rMultiple !== null && trade.rMultiple !== undefined ? Number(trade.rMultiple) : null,
-          grossPnl: Number(trade.grossPnl),
-          result: trade.result,
-          notes: trade.notes,
-          htfBias: trade.htfBias,
-          newsToday: trade.newsToday,
+          grossPnl: Number(trade.grossPnl || 0),
+          result: trade.result ?? null,
+          notes: trade.notes ?? null,
+          htfBias: trade.htfBias ?? null,
+          newsToday: trade.newsToday ?? null,
+          riskAmount: trade.riskAmount !== null && trade.riskAmount !== undefined ? Number(trade.riskAmount) : null,
           riskPercent: trade.riskPercent !== null && trade.riskPercent !== undefined ? Number(trade.riskPercent) : null,
-          drawDirection: trade.drawDirection,
-          setupModel: trade.setupModel,
-          emotionalState: trade.emotionalState,
-          rulesFollowed: trade.rulesFollowed,
-          rr: trade.rr,
+          rrAchieved: trade.rrAchieved !== null && trade.rrAchieved !== undefined ? Number(trade.rrAchieved) : null,
+          potentialRR: trade.potentialRR !== null && trade.potentialRR !== undefined ? Number(trade.potentialRR) : null,
+          lossR: trade.lossR !== null && trade.lossR !== undefined ? Number(trade.lossR) : null,
+          beforeTradeNotes: trade.beforeTradeNotes ?? null,
+          reasonNotes: trade.reasonNotes ?? null,
+          outcomeType: trade.outcomeType || "trade",
+          strategyId: trade.strategyId ?? null,
+          drawDirection: trade.drawDirection ?? null,
+          setupModel: trade.setupModel ?? null,
+          emotionalState: trade.emotionalState ?? null,
+          rulesFollowed: trade.rulesFollowed ?? null,
+          rr: trade.rr ?? null,
           ruleChecks: tradeChecks.map((rc: any) => ({
             ruleId: rc.ruleId,
             followed: Boolean(rc.followed),
@@ -283,6 +300,8 @@ export async function importSessionSnapshotAction(snapshotJson: string): Promise
         const eAt = new Date(t.entryAt);
         const xAt = new Date(t.exitAt);
         const newTradeId = crypto.randomUUID();
+        const outcomeType = (t.outcomeType as "trade" | "missed_entry" | "no_trade") || "trade";
+        const result = t.result ? t.result.toLowerCase() : outcomeType === "trade" ? "win" : null;
 
         const { data: createdTrade, error: tErr } = await supabase
           .from("Trade")
@@ -290,19 +309,27 @@ export async function importSessionSnapshotAction(snapshotJson: string): Promise
             id: newTradeId,
             sessionId: newSession.id,
             symbol: (t.symbol || data.session.instrument).toUpperCase().trim(),
-            direction: t.direction?.toLowerCase() === "short" ? "short" : "long",
+            direction: t.direction ? (t.direction.toLowerCase() === "short" ? "short" : "long") : null,
             entryAt: !isNaN(eAt.getTime()) ? eAt.toISOString() : pStart.toISOString(),
             exitAt: !isNaN(xAt.getTime()) ? xAt.toISOString() : pStart.toISOString(),
-            entryPrice: typeof t.entryPrice === "number" ? t.entryPrice : 0,
-            exitPrice: typeof t.exitPrice === "number" ? t.exitPrice : 0,
+            entryPrice: typeof t.entryPrice === "number" ? t.entryPrice : null,
+            exitPrice: typeof t.exitPrice === "number" ? t.exitPrice : null,
             stopLoss: typeof t.stopLoss === "number" ? t.stopLoss : null,
             rMultiple: typeof t.rMultiple === "number" ? t.rMultiple : null,
             grossPnl: typeof t.grossPnl === "number" ? t.grossPnl : 0,
-            result: t.result?.toLowerCase() || "win",
+            result,
             notes: t.notes || null,
             htfBias: t.htfBias || null,
             newsToday: t.newsToday || null,
+            riskAmount: typeof t.riskAmount === "number" ? t.riskAmount : null,
             riskPercent: typeof t.riskPercent === "number" ? t.riskPercent : null,
+            rrAchieved: typeof t.rrAchieved === "number" ? t.rrAchieved : null,
+            potentialRR: typeof t.potentialRR === "number" ? t.potentialRR : null,
+            lossR: typeof t.lossR === "number" ? t.lossR : null,
+            beforeTradeNotes: t.beforeTradeNotes || null,
+            reasonNotes: t.reasonNotes || null,
+            outcomeType,
+            strategyId: t.strategyId || null,
             drawDirection: t.drawDirection || null,
             setupModel: t.setupModel || null,
             emotionalState: t.emotionalState || null,
@@ -358,6 +385,7 @@ export async function importSessionSnapshotAction(snapshotJson: string): Promise
                   tradeId: createdTrade.id,
                   url: publicUrl,
                   label: img.label?.trim() || null,
+                  role: img.role || "outcome",
                 });
               } catch (imgErr) {
                 console.error("Failed to restore image on import:", imgErr);

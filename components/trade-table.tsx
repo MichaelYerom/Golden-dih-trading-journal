@@ -14,7 +14,7 @@ import { StrategyEntity } from "@/lib/data/strategies";
 import { ConfluenceEntity } from "@/lib/data/confluences";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatCurrency, formatPrice } from "@/lib/utils";
+import { formatCurrency, formatCurrencyNeutral, formatPrice } from "@/lib/utils";
 import { deleteTradeAction } from "@/lib/actions/trade-actions";
 import { AddTradeDrawer } from "@/components/add-trade-drawer";
 import { TradeFilters } from "@/components/trade-filters";
@@ -448,7 +448,7 @@ export function TradeTable({
                           <td className="px-3.5 py-2.5 text-right font-mono-numbers text-muted-foreground">
                             {isTrade && trade.riskAmount ? (
                               <span className="text-foreground font-medium">
-                                {formatCurrency(trade.riskAmount)}
+                                {formatCurrencyNeutral(trade.riskAmount)}
                               </span>
                             ) : (
                               <span className="text-muted-foreground/40">—</span>
@@ -638,7 +638,7 @@ export function TradeTable({
                                         Risked Amount
                                       </span>
                                       <span className="font-mono-numbers text-foreground font-semibold">
-                                        {formatCurrency(trade.riskAmount)}
+                                        {formatCurrencyNeutral(trade.riskAmount)}
                                         {trade.riskPercent !== null && ` (${trade.riskPercent.toFixed(2)}%)`}
                                       </span>
                                     </div>

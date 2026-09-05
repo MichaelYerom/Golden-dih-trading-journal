@@ -39,7 +39,7 @@ export async function getAllSessions(): Promise<SessionWithQuickStats[]> {
   const supabase = await createClient();
   const { data: sessions, error } = await supabase
     .from("Session")
-    .select("*, trades:Trade(grossPnl, result)")
+    .select("*, trades:Trade(grossPnl, result, outcomeType)")
     .eq("userId", user.id)
     .order("createdAt", { ascending: false });
 
@@ -54,9 +54,12 @@ export async function getAllSessions(): Promise<SessionWithQuickStats[]> {
     let lossCount = 0;
     let breakevenCount = 0;
     const tradesList = Array.isArray(session.trades) ? session.trades : [];
-    const tradeCount = tradesList.length;
+    const activeTrades = tradesList.filter(
+      (t: any) => t.outcomeType === "trade" || (!t.outcomeType && (t.result || t.grossPnl !== undefined))
+    );
+    const tradeCount = activeTrades.length;
 
-    for (const trade of tradesList) {
+    for (const trade of activeTrades) {
       netPnl += Number(trade.grossPnl || 0);
       if (trade.result === "win") winCount++;
       else if (trade.result === "loss") lossCount++;
