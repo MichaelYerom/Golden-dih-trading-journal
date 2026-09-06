@@ -475,7 +475,7 @@ export function MainAppSidebar({ user }: MainAppSidebarProps) {
       {/* ========================================================================= */}
       <aside
         className={cn(
-          "hidden md:flex flex-col justify-between shrink-0 sticky top-0 h-screen z-30 border-r border-border bg-card/60 backdrop-blur transition-all duration-200 ease-in-out",
+          "hidden md:flex flex-col justify-between shrink-0 sticky top-0 h-screen z-30 border-r border-border bg-card transition-all duration-200 ease-in-out",
           mounted && isCollapsed ? "w-[68px]" : "w-56"
         )}
       >

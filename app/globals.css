@@ -5,10 +5,10 @@
 @layer base {
   :root {
     --background: 220 15% 6%;         /* #0B0D10 */
-    --card: 220 13% 8%;               /* #12151A */
+    --card: 224 21% 11%;              /* #161922 */
     --card-foreground: 210 15% 91%;   /* #E7E9EC */
 
-    --popover: 220 13% 8%;
+    --popover: 224 21% 11%;
     --popover-foreground: 210 15% 91%;
 
     --primary: 45 65% 47%;            /* #C9A227 — muted gold */
