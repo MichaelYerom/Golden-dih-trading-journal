@@ -517,7 +517,10 @@ export async function createTrade(data: CreateTradeInput) {
       tradeId,
       confluenceId,
     }));
-    await supabase.from("TradeConfluence").insert(confInserts);
+    const { error: confErr } = await supabase.from("TradeConfluence").insert(confInserts);
+    if (confErr) {
+      console.error("Failed to insert trade confluences:", confErr);
+    }
   }
 
   // Insert Rule checks
@@ -658,7 +661,10 @@ export async function updateTrade(id: string, data: UpdateTradeInput) {
         tradeId: id,
         confluenceId,
       }));
-      await supabase.from("TradeConfluence").insert(inserts);
+      const { error: confErr } = await supabase.from("TradeConfluence").insert(inserts);
+      if (confErr) {
+        console.error("Failed to update trade confluences:", confErr);
+      }
     }
   }
 

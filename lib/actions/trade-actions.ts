@@ -68,21 +68,27 @@ export async function createTradeAction(formData: FormData) {
     const entryAtStr = formData.get("entryAt") as string;
     const exitAtStr = (formData.get("exitAt") as string) || entryAtStr;
 
-    if (!sessionId || !symbol || !entryAtStr) {
-      return { error: "Please provide session ID, symbol, and trade date/time." };
+    if (!sessionId) {
+      return { error: "Session ID is missing or invalid." };
+    }
+    if (!symbol || !symbol.trim()) {
+      return { error: "Please specify a trading symbol (e.g. NQ, ES, EURUSD)." };
+    }
+    if (!entryAtStr) {
+      return { error: "Please provide a valid trade entry date and time." };
     }
 
     const entryAt = new Date(entryAtStr);
     const exitAt = new Date(exitAtStr);
 
     if (isNaN(entryAt.getTime()) || isNaN(exitAt.getTime())) {
-      return { error: "Please provide a valid entry date/time." };
+      return { error: "Please provide a valid entry date and time." };
     }
 
     // Validate trade date against session date range
     const session = await getSessionById(sessionId);
     if (!session) {
-      return { error: "Session not found." };
+      return { error: "Session not found or you do not have permission to access it." };
     }
 
     const startBoundary = new Date(session.periodStart);
@@ -99,7 +105,8 @@ export async function createTradeAction(formData: FormData) {
     }
 
     // Strategy & Confluences
-    const strategyId = (formData.get("strategyId") as string) || null;
+    const rawStrategyId = formData.get("strategyId") as string;
+    const strategyId = rawStrategyId && rawStrategyId.trim() !== "" && rawStrategyId !== "none" ? rawStrategyId.trim() : null;
     const confluenceIdsJson = formData.get("confluenceIdsJson") as string;
     let confluenceIds: string[] = [];
     if (confluenceIdsJson) {
@@ -148,10 +155,16 @@ export async function createTradeAction(formData: FormData) {
 
     let result: "win" | "loss" | "breakeven" | null = null;
     if (outcomeType === "trade") {
+      if (riskAmount === null || riskAmount <= 0) {
+        return { error: "Please provide a valid Risk Amount greater than $0 for this trade." };
+      }
       if (resultStr === "win" || resultStr === "loss" || resultStr === "breakeven") {
         result = resultStr;
       } else {
         result = "win";
+      }
+      if (result === "win" && (rrAchieved === null || rrAchieved <= 0)) {
+        return { error: "Please enter a valid R Achieved greater than 0 for a winning trade." };
       }
     }
 
@@ -180,11 +193,11 @@ export async function createTradeAction(formData: FormData) {
       grossPnl,
       result,
       outcomeType,
-      riskAmount,
-      riskPercent,
-      rrAchieved,
-      potentialRR,
-      lossR,
+      riskAmount: outcomeType === "trade" ? riskAmount : null,
+      riskPercent: outcomeType === "trade" ? riskPercent : null,
+      rrAchieved: outcomeType === "trade" ? rrAchieved : null,
+      potentialRR: outcomeType === "trade" ? potentialRR : null,
+      lossR: outcomeType === "trade" ? lossR : -1,
       beforeTradeNotes: beforeTradeNotes || null,
       reasonNotes: reasonNotes || null,
       strategyId: strategyId || null,
@@ -200,14 +213,25 @@ export async function createTradeAction(formData: FormData) {
       ruleChecks,
     });
 
-    await saveTradeImagesFromFormData(trade.id, formData);
+    try {
+      await saveTradeImagesFromFormData(trade.id, formData);
+    } catch (imgErr) {
+      console.error("Warning: Failed to save attached trade images:", imgErr);
+    }
 
     revalidatePath(`/sessions/${sessionId}`);
     revalidatePath("/");
     return { success: true, tradeId: trade.id };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error creating trade:", error);
-    return { error: "Failed to log trade. Please check your inputs." };
+    const msg = error?.message || (typeof error === "string" ? error : "Failed to log trade.");
+    if (msg.includes("violates row-level security policy")) {
+      return { error: "Authentication expired or unauthorized. Please refresh the page or log in again." };
+    }
+    if (msg.includes("violates foreign key constraint")) {
+      return { error: "Referenced strategy or session is invalid or no longer exists." };
+    }
+    return { error: msg };
   }
 }
 
@@ -260,7 +284,8 @@ export async function updateTradeAction(formData: FormData) {
     }
 
     // Strategy & Confluences
-    const strategyId = (formData.get("strategyId") as string) || null;
+    const rawStrategyId = formData.get("strategyId") as string;
+    const strategyId = rawStrategyId && rawStrategyId.trim() !== "" && rawStrategyId !== "none" ? rawStrategyId.trim() : null;
     const confluenceIdsJson = formData.get("confluenceIdsJson") as string;
     let confluenceIds: string[] | undefined = undefined;
     if (confluenceIdsJson !== null && confluenceIdsJson !== undefined) {
@@ -312,6 +337,9 @@ export async function updateTradeAction(formData: FormData) {
       if (resultStr === "win" || resultStr === "loss" || resultStr === "breakeven") {
         result = resultStr;
       }
+      if (riskAmount !== undefined && (riskAmount === null || riskAmount <= 0)) {
+        return { error: "Please enter a valid risk amount greater than $0." };
+      }
     }
 
     const rulesFollowedValue = formData.get("rulesFollowed");
@@ -358,14 +386,25 @@ export async function updateTradeAction(formData: FormData) {
       ruleChecks,
     });
 
-    await saveTradeImagesFromFormData(tradeId, formData);
+    try {
+      await saveTradeImagesFromFormData(tradeId, formData);
+    } catch (imgErr) {
+      console.error("Warning: Failed to save attached trade images:", imgErr);
+    }
 
     revalidatePath(`/sessions/${sessionId}`);
     revalidatePath("/");
     return { success: true };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error updating trade:", error);
-    return { error: "Failed to update trade. Please check your inputs." };
+    const msg = error?.message || (typeof error === "string" ? error : "Failed to update trade.");
+    if (msg.includes("violates row-level security policy")) {
+      return { error: "Authentication expired or unauthorized. Please refresh the page or log in again." };
+    }
+    if (msg.includes("violates foreign key constraint")) {
+      return { error: "Referenced strategy or session is invalid or no longer exists." };
+    }
+    return { error: msg };
   }
 }
 
@@ -393,8 +432,9 @@ export async function deleteTradeAction(tradeId: string, sessionId: string) {
     revalidatePath(`/sessions/${sessionId}`);
     revalidatePath("/");
     return { success: true };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error deleting trade:", error);
-    return { error: "Failed to delete trade." };
+    const msg = error?.message || (typeof error === "string" ? error : "Failed to delete trade.");
+    return { error: msg };
   }
 }

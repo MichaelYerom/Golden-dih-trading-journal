@@ -175,9 +175,10 @@ export function AddTradeDrawer({
   const [existingImages, setExistingImages] = React.useState<TradeImageEntity[]>([]);
   const [deletingImageId, setDeletingImageId] = React.useState<string | null>(null);
 
-  // Drag & drop state
+  // Drag & drop & paste state
   const [isDraggingBefore, setIsDraggingBefore] = React.useState(false);
   const [isDraggingOutcome, setIsDraggingOutcome] = React.useState(false);
+  const [activePasteZone, setActivePasteZone] = React.useState<"before_trade" | "outcome">("before_trade");
   const beforeFileInputRef = React.useRef<HTMLInputElement | null>(null);
   const outcomeFileInputRef = React.useRef<HTMLInputElement | null>(null);
 
@@ -355,6 +356,41 @@ export function AddTradeDrawer({
     }
   };
 
+  const handlePasteImage = (
+    e: React.ClipboardEvent,
+    targetRole?: "before_trade" | "outcome"
+  ) => {
+    const clipboardData = e.clipboardData;
+    if (!clipboardData || !clipboardData.items) return;
+
+    const items = Array.from(clipboardData.items);
+    const imageItems = items.filter((item) => item.type.startsWith("image/"));
+
+    if (imageItems.length === 0) {
+      return;
+    }
+
+    e.preventDefault();
+
+    const role: "before_trade" | "outcome" =
+      targetRole || activePasteZone || "outcome";
+    const files: File[] = [];
+
+    imageItems.forEach((item, index) => {
+      const blob = item.getAsFile();
+      if (blob) {
+        const ext = blob.type.split("/")[1] || "png";
+        const filename = `pasted-screenshot-${Date.now()}-${index + 1}.${ext}`;
+        const file = new File([blob], filename, { type: blob.type });
+        files.push(file);
+      }
+    });
+
+    if (files.length > 0) {
+      handleAddFiles(files, role);
+    }
+  };
+
   const handleDeleteExistingImage = async (imageId: string) => {
     setDeletingImageId(imageId);
     const res = await deleteTradeImageAction(imageId, sessionId);
@@ -392,8 +428,19 @@ export function AddTradeDrawer({
     }
 
     if (!symbol.trim()) {
-      setError("Please specify a symbol (e.g. NQ, ES, EURUSD).");
+      setError("Please specify a trading symbol (e.g. NQ, ES, EURUSD).");
       return;
+    }
+
+    if (outcomeType === "trade") {
+      if (!parsedRisk || parsedRisk <= 0) {
+        setError("Please provide a valid Risk Amount greater than $0.");
+        return;
+      }
+      if (result === "win" && (!parsedRrAchieved || parsedRrAchieved <= 0)) {
+        setError("Please provide a valid R Achieved greater than 0 for a winning trade.");
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -514,12 +561,22 @@ export function AddTradeDrawer({
             </div>
           </SheetHeader>
 
-          <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+          <form onSubmit={handleSubmit} onPaste={(e) => handlePasteImage(e)} className="flex flex-col flex-1 overflow-hidden">
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
               {error && (
-                <div className="p-3 bg-[#DB5461]/10 border border-[#DB5461]/30 rounded-lg text-xs text-[#DB5461] flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                  <span>{error}</span>
+                <div className="p-3 bg-[#DB5461]/10 border border-[#DB5461]/30 rounded-lg text-xs text-[#DB5461] flex items-start justify-between gap-2 animate-in fade-in duration-150">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span className="font-medium leading-relaxed">{error}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setError(null)}
+                    className="text-[#DB5461]/70 hover:text-[#DB5461] p-0.5 rounded transition-colors"
+                    title="Dismiss error"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               )}
 
@@ -615,6 +672,13 @@ export function AddTradeDrawer({
                     <span className="text-[10px] text-muted-foreground font-normal">Optional</span>
                   </label>
                   <div
+                    tabIndex={0}
+                    onFocus={() => setActivePasteZone("before_trade")}
+                    onMouseEnter={() => setActivePasteZone("before_trade")}
+                    onPaste={(e) => {
+                      e.stopPropagation();
+                      handlePasteImage(e, "before_trade");
+                    }}
                     onDragOver={(e) => {
                       e.preventDefault();
                       setIsDraggingBefore(true);
@@ -626,7 +690,7 @@ export function AddTradeDrawer({
                       if (e.dataTransfer.files) handleAddFiles(e.dataTransfer.files, "before_trade");
                     }}
                     onClick={() => beforeFileInputRef.current?.click()}
-                    className={`border border-dashed rounded-lg p-3 text-center cursor-pointer transition-colors ${
+                    className={`border border-dashed rounded-lg p-3 text-center cursor-pointer transition-colors focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary ${
                       isDraggingBefore
                         ? "border-primary bg-primary/5"
                         : "border-border/80 hover:border-border hover:bg-muted/30"
@@ -644,7 +708,7 @@ export function AddTradeDrawer({
                     />
                     <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                       <UploadCloud className="h-4 w-4 text-primary" />
-                      <span>Upload pre-trade chart (Click or drag & drop)</span>
+                      <span>Upload pre-trade chart (Click, drag & drop, or Ctrl+V)</span>
                     </div>
                   </div>
 
@@ -1185,6 +1249,13 @@ export function AddTradeDrawer({
                     <span className="text-[10px] text-muted-foreground font-normal">Optional</span>
                   </label>
                   <div
+                    tabIndex={0}
+                    onFocus={() => setActivePasteZone("outcome")}
+                    onMouseEnter={() => setActivePasteZone("outcome")}
+                    onPaste={(e) => {
+                      e.stopPropagation();
+                      handlePasteImage(e, "outcome");
+                    }}
                     onDragOver={(e) => {
                       e.preventDefault();
                       setIsDraggingOutcome(true);
@@ -1196,7 +1267,7 @@ export function AddTradeDrawer({
                       if (e.dataTransfer.files) handleAddFiles(e.dataTransfer.files, "outcome");
                     }}
                     onClick={() => outcomeFileInputRef.current?.click()}
-                    className={`border border-dashed rounded-lg p-3 text-center cursor-pointer transition-colors ${
+                    className={`border border-dashed rounded-lg p-3 text-center cursor-pointer transition-colors focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary ${
                       isDraggingOutcome
                         ? "border-primary bg-primary/5"
                         : "border-border/80 hover:border-border hover:bg-muted/30"
@@ -1214,7 +1285,7 @@ export function AddTradeDrawer({
                     />
                     <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                       <UploadCloud className="h-4 w-4 text-primary" />
-                      <span>Upload post-trade outcome chart (Click or drag & drop)</span>
+                      <span>Upload post-trade outcome chart (Click, drag & drop, or Ctrl+V)</span>
                     </div>
                   </div>
 
