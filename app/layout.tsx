@@ -17,8 +17,8 @@ export default async function RootLayout({
   const user = await getCurrentUser();
 
   return (
-    <html lang="en" className="dark">
-      <body className="font-sans min-h-screen bg-background text-foreground flex flex-col md:flex-row antialiased">
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <body className="font-sans min-h-screen bg-background text-foreground flex flex-col md:flex-row antialiased" suppressHydrationWarning>
         <SessionNavProvider>
           {/* Unified single contextual sidebar (hidden on mobile, replaced by mobile header) */}
           <MainAppSidebar user={user} />
