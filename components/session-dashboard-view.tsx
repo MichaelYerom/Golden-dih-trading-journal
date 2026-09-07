@@ -3,14 +3,12 @@
 import * as React from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { AddTradeDrawer } from "@/components/add-trade-drawer";
 import { EquityChart } from "@/components/equity-chart";
 import { RDistributionChart } from "@/components/r-distribution-chart";
-import { TradeTable } from "@/components/trade-table";
 import { RuleComplianceCard } from "@/components/rule-compliance-card";
 import { TimeAnalyticsView } from "@/components/time-analytics-view";
 import { SetupLeaderboardView } from "@/components/setup-leaderboard-view";
-import { CalendarHeatmapView } from "@/components/calendar-heatmap-view";
+import { TradeViewTab } from "@/components/trade-view-tab";
 import { useSessionNav } from "@/components/session-nav-context";
 import {
   TradeEntity,
@@ -29,7 +27,7 @@ import {
   LayoutDashboard,
   Clock,
   Trophy,
-  CalendarDays,
+  Layers,
 } from "lucide-react";
 
 import { StrategyEntity } from "@/lib/data/strategies";
@@ -121,13 +119,12 @@ export function SessionDashboardView({
 
   const handleSelectSetupFromLeaderboard = (setupName: string) => {
     setSelectedSetupFilter(setupName);
-    setActiveTab("overview");
+    setActiveTab("calendar");
   };
 
   const handleSelectDateFromCalendar = (dateString: string) => {
-    // Jump to overview and filter trade table to this date
     router.replace(`${pathname}?start=${dateString}&end=${dateString}`, { scroll: false });
-    setActiveTab("overview");
+    setActiveTab("calendar");
   };
 
   return (
@@ -144,7 +141,7 @@ export function SessionDashboardView({
           }`}
         >
           <LayoutDashboard className="h-3.5 w-3.5" />
-          <span>Overview & Trades</span>
+          <span>Overview</span>
         </button>
 
         <button
@@ -204,9 +201,9 @@ export function SessionDashboardView({
               : "bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80"
           }`}
         >
-          <CalendarDays className="h-3.5 w-3.5" />
-          <span>Calendar Heatmap</span>
-          {calendarAnalytics.dayStreaks.totalTradingDays > 0 && (
+          <Layers className="h-3.5 w-3.5" />
+          <span>Trade View</span>
+          {trades.length > 0 && (
             <span
               className={`rounded-full px-1.5 py-0.2 text-[10px] font-mono-numbers ${
                 activeTab === "calendar"
@@ -214,7 +211,7 @@ export function SessionDashboardView({
                   : "bg-primary/15 text-primary"
               }`}
             >
-              {calendarAnalytics.dayStreaks.totalTradingDays}d
+              {trades.length}tr
             </span>
           )}
         </button>
@@ -537,47 +534,6 @@ export function SessionDashboardView({
 
           {/* RULE COMPLIANCE & PERFORMANCE SPLIT CARD */}
           <RuleComplianceCard compliance={compliance} rules={rules} />
-
-          {/* TRADE LOG TABLE */}
-          <div className="space-y-2.5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-              <div>
-                <h2 className="text-sm font-semibold tracking-tight text-foreground">
-                  Trade View ({trades.length})
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  Individual executions and backtest log observations.
-                </p>
-              </div>
-              <div className="self-start sm:self-center shrink-0">
-                <AddTradeDrawer
-                  sessionId={session.id}
-                  defaultSymbol={session.instrument}
-                  defaultDate={session.periodStart.toISOString()}
-                  sessionPeriodStart={session.periodStart}
-                  sessionPeriodEnd={session.periodEnd}
-                  sessionRules={rules}
-                  strategies={strategies}
-                  confluences={confluences}
-                  sessionStartingBalance={session.startingBalance}
-                  sessionCurrentBalance={stats.currentBalance}
-                />
-              </div>
-            </div>
-
-            <TradeTable
-              trades={trades}
-              sessionId={session.id}
-              sessionPeriodStart={session.periodStart}
-              sessionPeriodEnd={session.periodEnd}
-              sessionRules={rules}
-              strategies={strategies}
-              confluences={confluences}
-              sessionStartingBalance={session.startingBalance}
-              sessionCurrentBalance={stats.currentBalance}
-              initialSetupFilter={selectedSetupFilter}
-            />
-          </div>
         </div>
       ) : activeTab === "time" ? (
         /* TIME ANALYTICS VIEW TAB */
@@ -589,17 +545,20 @@ export function SessionDashboardView({
           onSelectSetup={handleSelectSetupFromLeaderboard}
         />
       ) : (
-        /* CALENDAR HEATMAP TAB */
-        <CalendarHeatmapView
-          calendarAnalytics={calendarAnalytics}
+        /* TRADE VIEW TAB (Calendar, Table & Screenshot Gallery) */
+        <TradeViewTab
           trades={trades}
           sessionId={session.id}
           sessionPeriodStart={session.periodStart}
           sessionPeriodEnd={session.periodEnd}
-          rules={rules}
+          sessionRules={rules}
           strategies={strategies}
           confluences={confluences}
+          sessionStartingBalance={session.startingBalance}
+          sessionCurrentBalance={stats.currentBalance}
           defaultSymbol={session.instrument}
+          initialSetupFilter={selectedSetupFilter}
+          calendarAnalytics={calendarAnalytics}
           onSelectDate={handleSelectDateFromCalendar}
         />
       )}

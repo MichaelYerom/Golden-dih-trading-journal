@@ -20,6 +20,7 @@ import {
   Clock,
   Trophy,
   CalendarDays,
+  Layers,
   Settings,
   Pencil,
   Download,
@@ -228,7 +229,7 @@ export function MainAppSidebar({ user }: MainAppSidebarProps) {
   }> = [
     {
       id: "overview",
-      label: "Overview & Trades",
+      label: "Overview",
       icon: LayoutDashboard,
     },
     {
@@ -257,13 +258,15 @@ export function MainAppSidebar({ user }: MainAppSidebarProps) {
     },
     {
       id: "calendar",
-      label: "Calendar Heatmap",
-      icon: CalendarDays,
+      label: "Trade View",
+      icon: Layers,
       badge:
-        sessionData?.calendarDays && sessionData.calendarDays > 0
-          ? `${sessionData.calendarDays}d`
-          : sessionData?.stats?.totalTrades && sessionData.stats.totalTrades > 0
+        sessionData?.stats?.totalTrades && sessionData.stats.totalTrades > 0
           ? `${sessionData.stats.totalTrades}tr`
+          : sessionData?.trades && sessionData.trades.length > 0
+          ? `${sessionData.trades.length}tr`
+          : sessionData?.calendarDays && sessionData.calendarDays > 0
+          ? `${sessionData.calendarDays}d`
           : null,
     },
   ];

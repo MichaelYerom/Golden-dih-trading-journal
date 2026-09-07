@@ -43,6 +43,7 @@ interface CalendarHeatmapViewProps {
   confluences?: ConfluenceEntity[];
   defaultSymbol?: string;
   onSelectDate?: (dateString: string) => void;
+  onEditTrade?: (trade: TradeEntity) => void;
 }
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -75,10 +76,23 @@ export function CalendarHeatmapView({
   confluences = [],
   defaultSymbol,
   onSelectDate,
+  onEditTrade,
 }: CalendarHeatmapViewProps) {
   const { dailyPnLMap, availableMonths, defaultMonthKey } = calendarAnalytics;
 
   const [selectedMonthKey, setSelectedMonthKey] = React.useState<string>(defaultMonthKey);
+
+  // Sync selectedMonthKey when availableMonths or defaultMonthKey changes
+  React.useEffect(() => {
+    if (defaultMonthKey) {
+      setSelectedMonthKey((prev) => {
+        if (!prev || !availableMonths.some((m) => m.key === prev)) {
+          return defaultMonthKey;
+        }
+        return prev;
+      });
+    }
+  }, [defaultMonthKey, availableMonths]);
 
   // Modal states for Day Trades popup and Edit Trade Drawer
   const [selectedDayDate, setSelectedDayDate] = React.useState<string | null>(null);
@@ -237,7 +251,11 @@ export function CalendarHeatmapView({
 
   const handleSelectTradeToEdit = (trade: TradeEntity) => {
     setSelectedDayDate(null);
-    setEditingTrade(trade);
+    if (onEditTrade) {
+      onEditTrade(trade);
+    } else {
+      setEditingTrade(trade);
+    }
   };
 
   return (

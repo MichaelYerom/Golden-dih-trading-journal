@@ -50,6 +50,8 @@ interface TradeTableProps {
   sessionStartingBalance?: number;
   sessionCurrentBalance?: number;
   initialSetupFilter?: string | null;
+  hideFilters?: boolean;
+  onEditTrade?: (trade: TradeEntity) => void;
 }
 
 export function TradeTable({
@@ -63,6 +65,8 @@ export function TradeTable({
   sessionStartingBalance = 10000,
   sessionCurrentBalance = 10000,
   initialSetupFilter = null,
+  hideFilters = false,
+  onEditTrade,
 }: TradeTableProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -235,8 +239,9 @@ export function TradeTable({
   }, [trades]);
 
   const filteredTrades = React.useMemo(() => {
+    if (hideFilters) return trades;
     return filterTrades(trades, filters);
-  }, [trades, filters]);
+  }, [trades, filters, hideFilters]);
 
   const handleDelete = async (tradeId: string) => {
     if (!confirm("Are you sure you want to delete this trade journal entry?")) return;
@@ -279,17 +284,19 @@ export function TradeTable({
       />
 
       <div className="space-y-3">
-        {/* ADVANCED FILTER & SEARCH BAR */}
-        <TradeFilters
-          filters={filters}
-          onFilterChange={handleFilterChange}
-          onResetFilters={handleResetFilters}
-          distinctSetups={distinctSetups}
-          distinctSymbols={distinctSymbols}
-          distinctEmotionalStates={distinctEmotionalStates}
-          totalTradesCount={trades.length}
-          filteredTradesCount={filteredTrades.length}
-        />
+        {/* ADVANCED FILTER & SEARCH BAR (only if not hidden) */}
+        {!hideFilters && (
+          <TradeFilters
+            filters={filters}
+            onFilterChange={handleFilterChange}
+            onResetFilters={handleResetFilters}
+            distinctSetups={distinctSetups}
+            distinctSymbols={distinctSymbols}
+            distinctEmotionalStates={distinctEmotionalStates}
+            totalTradesCount={trades.length}
+            filteredTradesCount={filteredTrades.length}
+          />
+        )}
 
         {/* TRADE TABLE OR EMPTY STATE */}
         {filteredTrades.length === 0 ? (
@@ -591,7 +598,7 @@ export function TradeTable({
                               )}
                               <button
                                 type="button"
-                                onClick={() => setEditingTrade(trade)}
+                                onClick={() => (onEditTrade ? onEditTrade(trade) : setEditingTrade(trade))}
                                 className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
                                 title="Edit trade"
                               >
